@@ -46,15 +46,6 @@ func (nn *NeuralNetwork) feedForward(input []float64) float64 {
 	inputs[0] = make([]float64, len(input))
 	copy(inputs[0], input)
 
-<<<<<<< HEAD
-	product := dotProduct(inputs, nn.weights)
-
-	prediction := product
-	for i := 0; i < nn.hiddenLayers; i++ {
-		for j := 0; j < nn.neurons; j++ {
-			prediction += nn.biases[i][j]
-=======
-	fmt.Println(inputs, "x", nn.weights)
 	product := dotProduct(inputs, nn.weights)
 
 	prediction := product
@@ -63,32 +54,10 @@ func (nn *NeuralNetwork) feedForward(input []float64) float64 {
 		for neuron := 0; neuron < nn.neurons; neuron++ {
 			prediction += nn.biases[hiddenLayer][neuron]
 			fmt.Println("layer:", hiddenLayer, "neuron:", neuron, prediction)
->>>>>>> 79a9eed (initial upload to github)
 		}
 	}
 
 	prediction = sigmoid(prediction)
-<<<<<<< HEAD
-	return prediction
-}
-
-func (nn *NeuralNetwork) train(inputs [][]float64, targets [][]float64, learnRate float64) {
-	// TODO: set epochs in the man function and send it as a parameter
-	for epoch := 0; epoch < 1000; epoch++ {
-		for i := range inputs {
-			// forward pass
-			prediction := nn.feedForward(inputs[i])
-
-			// loss calculation
-			// TODO: this assumes a single target! need to iterate in cases where there might be more.
-			loss := calculateLoss(prediction, targets[i][0])
-
-			// backward pass
-			gradients := calculateGradients(inputs[i], loss)
-
-			// adjust weights and biases
-			nn.updateWeightsAndBiases(gradients, learnRate)
-=======
 
 	return prediction
 }
@@ -107,41 +76,8 @@ func (nn *NeuralNetwork) train(inputs, targets [][]float64, learnRate float64) {
 			fmt.Println("prediction:", prediction, "target:", target)
 			fmt.Println("loss:", loss)
 			fmt.Println("---")
->>>>>>> 79a9eed (initial upload to github)
 		}
 	}
-}
-
-<<<<<<< HEAD
-func (nn *NeuralNetwork) updateWeightsAndBiases(gradients [][]float64, learnRate float64) {
-}
-
-func calculateGradients(input []float64, loss float64) [][]float64 {
-	return [][]float64{}
-=======
-func (nn *NeuralNetwork) calculateGradients(inputs []float64, target float64) ([][]float64, [][]float64) {
-	prediction := nn.feedForward(inputs)
-
-	weightGradient := make([][]float64, len(nn.weights))
-	biasGradient := make([][]float64, len(nn.biases))
-
-	for i := range nn.weights {
-		weightGradient[i] = make([]float64, len(nn.weights[i]))
-	}
-
-	for i := range nn.biases {
-		biasGradient[i] = make([]float64, len(nn.biases[i]))
-	}
-
-	for i := 0; i < nn.hiddenLayers; i++ {
-		for j := 0; j < nn.neurons; j++ {
-			weightGradient[i][j] = inputs[i] * (prediction - target) * sigmoidDerivative(nn.weights[i][j])
-			biasGradient[i][j] = (prediction - target) * sigmoidDerivative(prediction)
-		}
-	}
-
-	return weightGradient, biasGradient
->>>>>>> 79a9eed (initial upload to github)
 }
 
 func calculateLoss(prediction, target float64) float64 {
