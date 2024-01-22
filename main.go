@@ -33,8 +33,9 @@ func initNetwork(inputs, hiddenLayers, neurons, outputs int) *NeuralNetwork {
 	nn.biases = make([][]float64, nn.hiddenLayers)
 	for i := range nn.biases {
 		nn.biases[i] = make([]float64, nn.neurons)
+		bias := rand.Float64()
 		for j := range nn.biases[i] {
-			nn.biases[i][j] = rand.Float64()
+			nn.biases[i][j] = bias
 		}
 	}
 
@@ -46,7 +47,8 @@ func (nn *NeuralNetwork) feedForward(input []float64) float64 {
 	inputs[0] = make([]float64, len(input))
 	copy(inputs[0], input)
 
-	product := dotProduct(inputs, nn.weights)
+	fmt.Println(nn.weights, "x", inputs)
+	product := dotProduct(nn.weights, inputs)
 
 	prediction := product
 	fmt.Println(prediction)
