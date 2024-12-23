@@ -2,23 +2,10 @@ package main
 
 import "math"
 
-func dotProduct(matrix1, matrix2 [][]float64) float64 {
-	rows1, cols1 := len(matrix1), len(matrix1[0])
-	rows2 := len(matrix2)
+func dotProduct(inputs, weights [][]float64) []float64 {
 
-	if cols1 != rows2 {
-		panic("check matrix dimensions")
-	}
 
-	product := 0.0
-
-	for row := 0; row < rows1; row++ {
-		for col := 0; col < cols1; col++ {
-			product += matrix1[row][col] * matrix2[col][row]
-		}
-	}
-
-	return product
+  return make([]float64, 11)
 }
 
 func sigmoidDerivative(x float64) float64 {

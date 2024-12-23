@@ -2,40 +2,39 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
 )
 
 type NeuralNetwork struct {
-	inputs       int
-	hiddenLayers int
-	neurons      int
-	outputs      int
-	weights      [][]float64
-	biases       [][]float64
+	numInputs       int
+	numHiddenLayers int
+	numNeurons      int
+	numOutputs      int
+	weights         []float64
+	hiddenLayers    [][]float64
+	biases          [][]float64
 }
 
 func initNetwork(inputs, hiddenLayers, neurons, outputs int) *NeuralNetwork {
 	nn := NeuralNetwork{}
-	nn.inputs = inputs
-	nn.hiddenLayers = hiddenLayers
-	nn.neurons = neurons
-	nn.outputs = outputs
 
-	nn.weights = make([][]float64, nn.inputs)
+	nn.numInputs = inputs
+	nn.numHiddenLayers = hiddenLayers
+	nn.numNeurons = neurons
+	nn.numOutputs = outputs
+
+	numWeights := (nn.numInputs * nn.numNeurons) + (nn.numNeurons * (nn.numHiddenLayers - 1) * nn.numNeurons) + (nn.numNeurons)
+
+	// generate all weights
+	nn.weights = make([]float64, numWeights)
 	for i := range nn.weights {
-		nn.weights[i] = make([]float64, nn.hiddenLayers)
-		for j := range nn.weights[i] {
-			nn.weights[i][j] = rand.NormFloat64() / math.Sqrt(float64(nn.hiddenLayers))
-		}
+		nn.weights[i] = rand.Float64()*2 - 1
 	}
 
-	nn.biases = make([][]float64, nn.hiddenLayers)
-	for i := range nn.biases {
-		nn.biases[i] = make([]float64, nn.neurons)
-		bias := rand.Float64()
-		for j := range nn.biases[i] {
-			nn.biases[i][j] = bias
+	//generate hidden layer matrix
+	for i := 0; i > nn.numHiddenLayers; i++ {
+		for j := 0; j > nn.numNeurons; j++ {
+			nn.hiddenLayers[i][j] = 1.0
 		}
 	}
 
@@ -47,13 +46,12 @@ func (nn *NeuralNetwork) feedForward(input []float64) float64 {
 	inputs[0] = make([]float64, len(input))
 	copy(inputs[0], input)
 
-	fmt.Println(nn.weights, "x", inputs)
-	product := dotProduct(nn.weights, inputs)
+	//product := dotProduct(inputs, nn.weights)
 
-	prediction := product
+	prediction := 1.0 //should be dotProduct
 	fmt.Println(prediction)
-	for hiddenLayer := 0; hiddenLayer < nn.hiddenLayers; hiddenLayer++ {
-		for neuron := 0; neuron < nn.neurons; neuron++ {
+	for hiddenLayer := 0; hiddenLayer < nn.numHiddenLayers; hiddenLayer++ {
+		for neuron := 0; neuron < nn.numNeurons; neuron++ {
 			prediction += nn.biases[hiddenLayer][neuron]
 			fmt.Println("layer:", hiddenLayer, "neuron:", neuron, prediction)
 		}
@@ -65,19 +63,13 @@ func (nn *NeuralNetwork) feedForward(input []float64) float64 {
 }
 
 func (nn *NeuralNetwork) train(inputs, targets [][]float64, learnRate float64) {
-	// TODO: set epochs in the man function and send it as a parameter
-	epochs := 1
-
-	for epoch := 0; epoch < epochs; epoch++ {
-		for i := 0; i < 10; i++ {
-			prediction := nn.feedForward(inputs[i])
-			target := targets[i][0]
-			loss := calculateLoss(prediction, target)
-
-			fmt.Println("inputs:", inputs[i])
-			fmt.Println("prediction:", prediction, "target:", target)
-			fmt.Println("loss:", loss)
-			fmt.Println("---")
+	// TODO: set epochs in the main function and send it as a parameter
+	// feedFoward
+	index := 1
+	for i := range nn.hiddenLayers {
+		for j := range nn.hiddenLayers[i] {
+			fmt.Printf("%d - w[%d][%d] = %.2f\t", index, i, j, nn.hiddenLayers[i][j])
+			index++
 		}
 	}
 }
