@@ -2,12 +2,12 @@ package main
 
 import "math"
 
-func sigmoidDerivative(x float64) float64 {
-	return x * (1.0 - x)
-}
-
 func sigmoid(x float64) float64 {
 	return 1.0 / (1.0 + math.Exp(-x))
+}
+
+func sigmoidDerivative(x float64) float64 {
+	return x * (1.0 - x)
 }
 
 func relu(x float64) float64 {
