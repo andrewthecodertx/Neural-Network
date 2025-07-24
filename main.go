@@ -276,12 +276,10 @@ func main() {
 		modelFileName := "model.json"
 		md, err := loadModel(modelFileName)
 		if err != nil {
-			fmt.Printf("Error loading model: %v
-", err)
+			fmt.Printf("Error loading model: %v", err)
 			return
 		}
-		fmt.Printf("Model loaded from %s
-", modelFileName)
+		fmt.Printf("Model loaded from %s", modelFileName)
 
 		fmt.Println("Enter input values for prediction (space-separated):")
 		var inputValuesStr string
@@ -293,8 +291,7 @@ func main() {
 		for i, s := range inputStrings {
 			val, err := strconv.ParseFloat(s, 64)
 			if err != nil {
-				fmt.Printf("Invalid input: %v
-", err)
+				fmt.Printf("Invalid input: %v", err)
 				return
 			}
 			inputValues[i] = val
@@ -302,8 +299,7 @@ func main() {
 
 		// Normalize input values
 		if len(inputValues) != md.NN.NumInputs {
-			fmt.Printf("Expected %d input values, got %d
-", md.NN.NumInputs, len(inputValues))
+			fmt.Printf("Expected %d input values, got %d", md.NN.NumInputs, len(inputValues))
 			return
 		}
 		normalizedInput := make([]float64, md.NN.NumInputs)
@@ -317,8 +313,7 @@ func main() {
 
 		_, prediction := md.NN.feedForward(normalizedInput)
 		denormalizedPrediction := prediction[0]*(md.TargetMaxs[0]-md.TargetMins[0]) + md.TargetMins[0]
-		fmt.Printf("Prediction for input: %v
-", denormalizedPrediction)
+		fmt.Printf("Prediction for input: %v", denormalizedPrediction)
 
 	} else {
 		fmt.Println("Invalid choice. Please enter 't' or 'l'.")
