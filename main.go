@@ -264,14 +264,6 @@ func main() {
 		} else {
 			fmt.Printf("Model saved to %s\n", modelFileName)
 		}
-
-		// Example prediction
-		_, prediction := nn.feedForward(inputs[0])
-		denormalizedPrediction := prediction[0]*(targetMaxs[0]-targetMins[0]) + targetMins[0]
-		denormalizedTarget := targets[0][0]*(targetMaxs[0]-targetMins[0]) + targetMins[0]
-
-		fmt.Printf("Prediction for first input: %v, Actual: %v\n", denormalizedPrediction, denormalizedTarget)
-
 	} else if choice == "l" || choice == "L" {
 		modelFileName := "model.json"
 		md, err := loadModel(modelFileName)
@@ -286,7 +278,7 @@ func main() {
 		fmt.Scanln(&inputValuesStr)
 
 		// Parse input values
-		inputStrings := strings.Fields(inputValuesStr)
+		inputStrings := strings.Split(inputValuesStr, ",")
 		inputValues := make([]float64, len(inputStrings))
 		for i, s := range inputStrings {
 			val, err := strconv.ParseFloat(s, 64)
