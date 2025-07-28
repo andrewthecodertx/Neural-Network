@@ -13,7 +13,7 @@ func TestInitNetwork(t *testing.T) {
 	hidden := 3
 	outputs := 1
 
-	nn := initNetwork(inputs, hidden, outputs)
+	nn := InitNetwork(inputs, hidden, outputs)
 
 	if nn.NumInputs != inputs {
 		t.Errorf("Expected NumInputs to be %d, got %d", inputs, nn.NumInputs)
@@ -78,7 +78,7 @@ func TestFeedForward(t *testing.T) {
 	// Output layer input: (0.3 * 0.5) + (0.7 * 0.6) + 0.0 = 0.15 + 0.42 = 0.57
 	// Final output: 0.57
 
-	hiddenOutputs, finalOutputs := nn.feedForward(inputs)
+	hiddenOutputs, finalOutputs := nn.FeedForward(inputs)
 
 	expectedHiddenOutputs := []float64{0.3, 0.7}
 	expectedFinalOutputs := []float64{0.57}
@@ -125,13 +125,13 @@ func TestSaveAndLoadModel(t *testing.T) {
 	defer os.Remove(filePath)
 
 	// Save the model
-	err = originalMD.saveModel(filePath)
+	err = originalMD.SaveModel(filePath)
 	if err != nil {
 		t.Fatalf("Failed to save model: %v", err)
 	}
 
 	// Load the model
-	loadedMD, err := loadModel(filePath)
+	loadedMD, err := LoadModel(filePath)
 	if err != nil {
 		t.Fatalf("Failed to load model: %v", err)
 	}
