@@ -1,12 +1,11 @@
-package main
+package neuralnetwork
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"math/rand"
-	"os"
-	"time"
+
+	"go-neuralnetwork/internal/utils"
 )
 
 type NeuralNetwork struct {
@@ -20,7 +19,7 @@ type NeuralNetwork struct {
 }
 
 func InitNetwork(inputs, hidden, outputs int) *NeuralNetwork {
-	rand.Seed(time.Now().UnixNano())
+	
 
 	hiddenWeights := make([][]float64, hidden)
 	heInitHidden := math.Sqrt(2.0 / float64(inputs))
@@ -62,7 +61,7 @@ func (nn *NeuralNetwork) FeedForward(inputs []float64) ([]float64, []float64) {
 		for j := 0; j < nn.NumInputs; j++ {
 			sum += inputs[j] * nn.HiddenWeights[i][j]
 		}
-		hiddenOutputs[i] = relu(sum + nn.HiddenBiases[i])
+		hiddenOutputs[i] = utils.Relu(sum + nn.HiddenBiases[i])
 	}
 
 	// Calculate final outputs
@@ -96,7 +95,7 @@ func (nn *NeuralNetwork) Backpropagate(inputs, targets, hiddenOutputs, finalOutp
 			sum += outputDeltas[j] * nn.OutputWeights[j][i]
 		}
 		hiddenErrors[i] = sum
-		hiddenDeltas[i] = hiddenErrors[i] * reluDerivative(hiddenOutputs[i])
+		hiddenDeltas[i] = hiddenErrors[i] * utils.ReluDerivative(hiddenOutputs[i])
 	}
 
 	// Update output weights and biases
@@ -142,52 +141,6 @@ func (nn *NeuralNetwork) Train(inputs, targets [][]float64, epochs int, learning
 	fmt.Println()
 }
 
-type ModelData struct {
-	NN         *NeuralNetwork `json:"neuralNetwork"`
-	TargetMins []float64      `json:"targetMins"`
-	TargetMaxs []float64      `json:"targetMaxs"`
-	InputMins  []float64      `json:"inputMins"`
-	InputMaxs  []float64      `json:"inputMaxs"`
-}
 
-func (md *ModelData) SaveModel(filePath string) error {
-	file, err := os.Create(filePath)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
 
-	encoder := json.NewEncoder(file)
-	encoder.SetIndent("", "  ")
-	return encoder.Encode(md)
-}
 
-func LoadModel(filePath string) (*ModelData, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var md ModelData
-	decoder := json.NewDecoder(file)
-	err = decoder.Decode(&md)
-	if err != nil {
-		return nil, err
-	}
-	return &md, nil
-}
-
-func relu(x float64) float64 {
-	if x > 0 {
-		return x
-	}
-	return 0
-}
-
-func reluDerivative(x float64) float64 {
-	if x > 0 {
-		return 1
-	}
-	return 0
-}

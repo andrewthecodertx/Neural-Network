@@ -1,10 +1,12 @@
-package main
+package data_test
 
 import (
 	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
+
+	"go-neuralnetwork/internal/data"
 )
 
 func createTempCSV(content string) (string, error) {
@@ -32,7 +34,10 @@ func TestLoadCSV(t *testing.T) {
 	}
 	defer os.Remove(filePath1)
 
-	inputs1, targets1, targetMins1, targetMaxs1, inputMins1, inputMaxs1 := loadCSV(filePath1, 2, 1)
+	inputs1, targets1, targetMins1, targetMaxs1, inputMins1, inputMaxs1, err1 := data.LoadCSV(filePath1, 2, 1)
+	if err1 != nil {
+		t.Fatalf("Test Case 1: Unexpected error: %v", err1)
+	}
 
 	expectedInputs1 := [][]float64{{
 		0.0, 0.0,
@@ -71,9 +76,9 @@ func TestLoadCSV(t *testing.T) {
 	}
 
 	// Test case 2: Invalid file path
-	inputs2, targets2, targetMins2, targetMaxs2, inputMins2, inputMaxs2 := loadCSV("nonexistent.csv", 1, 1)
-	if inputs2 != nil || targets2 != nil || targetMins2 != nil || targetMaxs2 != nil || inputMins2 != nil || inputMaxs2 != nil {
-		t.Errorf("Test Case 2: Expected nil for invalid file path, got non-nil values")
+	_, _, _, _, _, _, err2 := data.LoadCSV("nonexistent.csv", 1, 1)
+	if err2 == nil {
+		t.Errorf("Test Case 2: Expected an error for invalid file path, got nil")
 	}
 
 	// Test case 3: Empty CSV file
@@ -84,9 +89,9 @@ func TestLoadCSV(t *testing.T) {
 	}
 	defer os.Remove(filePath3)
 
-	inputs3, targets3, targetMins3, targetMaxs3, inputMins3, inputMaxs3 := loadCSV(filePath3, 1, 1)
-	if inputs3 != nil || targets3 != nil || targetMins3 != nil || targetMaxs3 != nil || inputMins3 != nil || inputMaxs3 != nil {
-		t.Errorf("Test Case 3: Expected nil for empty CSV, got non-nil values")
+	_, _, _, _, _, _, err3 := data.LoadCSV(filePath3, 1, 1)
+	if err3 == nil {
+		t.Errorf("Test Case 3: Expected an error for empty CSV, got nil")
 	}
 
 	// Test case 4: CSV with non-numeric data
@@ -98,8 +103,8 @@ abc,1.0`
 	}
 	defer os.Remove(filePath4)
 
-	inputs4, targets4, targetMins4, targetMaxs4, inputMins4, inputMaxs4 := loadCSV(filePath4, 1, 1)
-	if inputs4 != nil || targets4 != nil || targetMins4 != nil || targetMaxs4 != nil || inputMins4 != nil || inputMaxs4 != nil {
-		t.Errorf("Test Case 4: Expected nil for non-numeric data, got non-nil values")
+	_, _, _, _, _, _, err4 := data.LoadCSV(filePath4, 1, 1)
+	if err4 == nil {
+		t.Errorf("Test Case 4: Expected an error for non-numeric data, got nil")
 	}
 }

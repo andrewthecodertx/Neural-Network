@@ -1,4 +1,4 @@
-package main
+package neuralnetwork_test
 
 import (
 	"io/ioutil"
@@ -6,6 +6,9 @@ import (
 	"os"
 	"reflect"
 	"testing"
+
+	"go-neuralnetwork/internal/data"
+	"go-neuralnetwork/internal/neuralnetwork"
 )
 
 func TestInitNetwork(t *testing.T) {
@@ -13,7 +16,7 @@ func TestInitNetwork(t *testing.T) {
 	hidden := 3
 	outputs := 1
 
-	nn := InitNetwork(inputs, hidden, outputs)
+	nn := neuralnetwork.InitNetwork(inputs, hidden, outputs)
 
 	if nn.NumInputs != inputs {
 		t.Errorf("Expected NumInputs to be %d, got %d", inputs, nn.NumInputs)
@@ -58,7 +61,7 @@ func TestInitNetwork(t *testing.T) {
 
 func TestFeedForward(t *testing.T) {
 	// Create a simple network with known weights and biases
-	nn := &NeuralNetwork{
+	nn := &neuralnetwork.NeuralNetwork{
 		NumInputs:     2,
 		NumHidden:     2,
 		NumOutputs:    1,
@@ -71,8 +74,8 @@ func TestFeedForward(t *testing.T) {
 	inputs := []float64{1.0, 1.0}
 
 	// Expected calculations:
-	// Hidden layer input 1: (1.0 * 0.1) + (1.0 * 0.2) + 0.0 = 0.3 -> relu(0.3) = 0.3
-	// Hidden layer input 2: (1.0 * 0.3) + (1.0 * 0.4) + 0.0 = 0.7 -> relu(0.7) = 0.7
+	// Hidden layer input 1: (1.0 * 0.1) + (1.0 * 0.2) + 0.0 = 0.3 -> utils.Relu(0.3) = 0.3
+	// Hidden layer input 2: (1.0 * 0.3) + (1.0 * 0.4) + 0.0 = 0.7 -> utils.Relu(0.7) = 0.7
 	// Hidden outputs: [0.3, 0.7]
 
 	// Output layer input: (0.3 * 0.5) + (0.7 * 0.6) + 0.0 = 0.15 + 0.42 = 0.57
@@ -98,7 +101,7 @@ func TestFeedForward(t *testing.T) {
 
 func TestSaveAndLoadModel(t *testing.T) {
 	// Create a dummy ModelData
-	originalNN := &NeuralNetwork{
+	originalNN := &neuralnetwork.NeuralNetwork{
 		NumInputs:     2,
 		NumHidden:     2,
 		NumOutputs:    1,
@@ -107,7 +110,7 @@ func TestSaveAndLoadModel(t *testing.T) {
 		HiddenBiases:  []float64{0.7, 0.8},
 		OutputBiases:  []float64{0.9},
 	}
-	originalMD := &ModelData{
+	originalMD := &data.ModelData{
 		NN:         originalNN,
 		TargetMins: []float64{1.0},
 		TargetMaxs: []float64{10.0},
@@ -131,7 +134,7 @@ func TestSaveAndLoadModel(t *testing.T) {
 	}
 
 	// Load the model
-	loadedMD, err := LoadModel(filePath)
+	loadedMD, err := data.LoadModel(filePath)
 	if err != nil {
 		t.Fatalf("Failed to load model: %v", err)
 	}

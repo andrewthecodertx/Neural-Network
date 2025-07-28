@@ -6,6 +6,7 @@ models and loading pre-trained models for prediction.
 
 ## Features
 
+* **Modular Design:** Code is organized into separate packages (`cli`, `data`, `neuralnetwork`, `utils`) for better maintainability and reusability.
 * **Feed-Forward Neural Network:** A basic implementation of a neural network
 with input, hidden, and output layers.
 * **Training:** Train the neural network using your own CSV data.

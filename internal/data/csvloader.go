@@ -1,4 +1,4 @@
-package main
+package data
 
 import (
 	"encoding/csv"
@@ -6,10 +6,10 @@ import (
 	"strconv"
 )
 
-func loadCSV(filePath string, numInputs, numTargets int) ([][]float64, [][]float64, []float64, []float64, []float64, []float64) {
+func LoadCSV(filePath string, numInputs, numTargets int) ([][]float64, [][]float64, []float64, []float64, []float64, []float64, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, nil, nil, err
 	}
 	defer file.Close()
 
@@ -17,12 +17,12 @@ func loadCSV(filePath string, numInputs, numTargets int) ([][]float64, [][]float
 
 	// skip the first line (header)
 	if _, err := reader.Read(); err != nil {
-		return nil, nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, nil, nil, err
 	}
 
 	records, err := reader.ReadAll()
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil
+		return nil, nil, nil, nil, nil, nil, err
 	}
 
 	var inputs [][]float64
@@ -40,7 +40,7 @@ func loadCSV(filePath string, numInputs, numTargets int) ([][]float64, [][]float
 		for i := 0; i < numInputs+numTargets; i++ {
 			val, err := strconv.ParseFloat(record[i], 64)
 			if err != nil {
-				return nil, nil, nil, nil, nil, nil
+				return nil, nil, nil, nil, nil, nil, err
 			}
 			if val < mins[i] {
 				mins[i] = val
@@ -76,5 +76,5 @@ func loadCSV(filePath string, numInputs, numTargets int) ([][]float64, [][]float
 		outputs = append(outputs, outputRow)
 	}
 
-	return inputs, outputs, targetMins, targetMaxs, mins[:numInputs], maxs[:numInputs]
+	return inputs, outputs, targetMins, targetMaxs, mins[:numInputs], maxs[:numInputs], nil
 }
