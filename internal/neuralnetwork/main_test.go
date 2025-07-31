@@ -15,8 +15,10 @@ func TestInitNetwork(t *testing.T) {
 	inputs := 2
 	hidden := 3
 	outputs := 1
+	hiddenActivation := "relu"
+	outputActivation := "linear"
 
-	nn := neuralnetwork.InitNetwork(inputs, hidden, outputs)
+	nn := neuralnetwork.InitNetwork(inputs, hidden, outputs, hiddenActivation, outputActivation)
 
 	if nn.NumInputs != inputs {
 		t.Errorf("Expected NumInputs to be %d, got %d", inputs, nn.NumInputs)
@@ -26,6 +28,12 @@ func TestInitNetwork(t *testing.T) {
 	}
 	if nn.NumOutputs != outputs {
 		t.Errorf("Expected NumOutputs to be %d, got %d", outputs, nn.NumOutputs)
+	}
+	if nn.HiddenActivation != hiddenActivation {
+		t.Errorf("Expected HiddenActivation to be %s, got %s", hiddenActivation, nn.HiddenActivation)
+	}
+	if nn.OutputActivation != outputActivation {
+		t.Errorf("Expected OutputActivation to be %s, got %s", outputActivation, nn.OutputActivation)
 	}
 
 	if len(nn.HiddenWeights) != hidden || len(nn.HiddenWeights[0]) != inputs {
@@ -62,14 +70,17 @@ func TestInitNetwork(t *testing.T) {
 func TestFeedForward(t *testing.T) {
 	// Create a simple network with known weights and biases
 	nn := &neuralnetwork.NeuralNetwork{
-		NumInputs:     2,
-		NumHidden:     2,
-		NumOutputs:    1,
-		HiddenWeights: [][]float64{{0.1, 0.2}, {0.3, 0.4}},
-		OutputWeights: [][]float64{{0.5, 0.6}},
-		HiddenBiases:  []float64{0.0, 0.0},
-		OutputBiases:  []float64{0.0},
+		NumInputs:        2,
+		NumHidden:        2,
+		NumOutputs:       1,
+		HiddenWeights:    [][]float64{{0.1, 0.2}, {0.3, 0.4}},
+		OutputWeights:    [][]float64{{0.5, 0.6}},
+		HiddenBiases:     []float64{0.0, 0.0},
+		OutputBiases:     []float64{0.0},
+		HiddenActivation: "relu",
+		OutputActivation: "linear",
 	}
+	nn.SetActivationFunctions()
 
 	inputs := []float64{1.0, 1.0}
 
@@ -101,15 +112,12 @@ func TestFeedForward(t *testing.T) {
 
 func TestSaveAndLoadModel(t *testing.T) {
 	// Create a dummy ModelData
-	originalNN := &neuralnetwork.NeuralNetwork{
-		NumInputs:     2,
-		NumHidden:     2,
-		NumOutputs:    1,
-		HiddenWeights: [][]float64{{0.1, 0.2}, {0.3, 0.4}},
-		OutputWeights: [][]float64{{0.5, 0.6}},
-		HiddenBiases:  []float64{0.7, 0.8},
-		OutputBiases:  []float64{0.9},
-	}
+	originalNN := neuralnetwork.InitNetwork(2, 2, 1, "relu", "linear")
+	originalNN.HiddenWeights = [][]float64{{0.1, 0.2}, {0.3, 0.4}}
+	originalNN.OutputWeights = [][]float64{{0.5, 0.6}}
+	originalNN.HiddenBiases = []float64{0.7, 0.8}
+	originalNN.OutputBiases = []float64{0.9}
+
 	originalMD := &data.ModelData{
 		NN:         originalNN,
 		TargetMins: []float64{1.0},
@@ -138,11 +146,14 @@ func TestSaveAndLoadModel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to load model: %v", err)
 	}
+	loadedMD.NN.SetActivationFunctions()
 
 	// Compare loaded model with original
 	if !reflect.DeepEqual(originalMD.NN.NumInputs, loadedMD.NN.NumInputs) ||
 		!reflect.DeepEqual(originalMD.NN.NumHidden, loadedMD.NN.NumHidden) ||
 		!reflect.DeepEqual(originalMD.NN.NumOutputs, loadedMD.NN.NumOutputs) ||
+		!reflect.DeepEqual(originalMD.NN.HiddenActivation, loadedMD.NN.HiddenActivation) ||
+		!reflect.DeepEqual(originalMD.NN.OutputActivation, loadedMD.NN.OutputActivation) ||
 		!reflect.DeepEqual(originalMD.NN.HiddenWeights, loadedMD.NN.HiddenWeights) ||
 		!reflect.DeepEqual(originalMD.NN.OutputWeights, loadedMD.NN.OutputWeights) ||
 		!reflect.DeepEqual(originalMD.NN.HiddenBiases, loadedMD.NN.HiddenBiases) ||

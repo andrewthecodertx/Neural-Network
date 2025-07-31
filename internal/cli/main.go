@@ -32,11 +32,13 @@ func trainModel() {
 	inputCount := getIntWithDefault(reader, "inputs", 11)
 	outputCount := getIntWithDefault(reader, "outputs", 1)
 	hiddenCount := getIntWithDefault(reader, "hidden neurons", 16)
+	hiddenActivation := getActivationWithDefault(reader, "hidden activation (relu, sigmoid, tanh, linear)", "relu")
+	outputActivation := getActivationWithDefault(reader, "output activation (relu, sigmoid, tanh, linear)", "linear")
 	epochs := getIntWithDefault(reader, "epochs", 200)
 	learningRate := getFloatWithDefault(reader, "learning rate", 0.05)
 	errorGoal := getFloatWithDefault(reader, "error goal", 0.005)
 
-	var inputs [][]float64	
+	var inputs [][]float64
 	var targets [][]float64
 	var targetMins []float64
 	var targetMaxs []float64
@@ -50,7 +52,7 @@ func trainModel() {
 		return
 	}
 
-	nn := neuralnetwork.InitNetwork(inputCount, hiddenCount, outputCount)
+	nn := neuralnetwork.InitNetwork(inputCount, hiddenCount, outputCount, hiddenActivation, outputActivation)
 
 	nn.Train(inputs, targets, epochs, learningRate, errorGoal)
 
@@ -79,6 +81,7 @@ func loadAndPredict() {
 		fmt.Printf("Error loading model: %v\n", err)
 		return
 	}
+	md.NN.SetActivationFunctions()
 	fmt.Printf("Model loaded from %s\n", modelFileName)
 
 	reader := bufio.NewReader(os.Stdin)
@@ -155,4 +158,19 @@ func getFloatWithDefault(reader *bufio.Reader, prompt string, defaultValue float
 		return defaultValue
 	}
 	return val
+}
+
+func getActivationWithDefault(reader *bufio.Reader, prompt, defaultValue string) string {
+	fmt.Printf("%s (default: %s): ", prompt, defaultValue)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return defaultValue
+	}
+	// Basic validation, can be improved
+	if input != "relu" && input != "sigmoid" && input != "tanh" && input != "linear" {
+		fmt.Printf("Invalid activation function, using default value: %s\n", defaultValue)
+		return defaultValue
+	}
+	return input
 }

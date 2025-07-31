@@ -8,19 +8,39 @@ import (
 	"go-neuralnetwork/internal/utils"
 )
 
-type NeuralNetwork struct {
-	NumInputs     int         `json:"numInputs"`
-	NumHidden     int         `json:"numHidden"`
-	NumOutputs    int         `json:"numOutputs"`
-	HiddenWeights [][]float64 `json:"hiddenWeights"`
-	OutputWeights [][]float64 `json:"outputWeights"`
-	HiddenBiases  []float64   `json:"hiddenBiases"`
-	OutputBiases  []float64   `json:"outputBiases"`
+type Activation func(float64) float64
+
+var activationFunctions = map[string]Activation{
+	"relu":    utils.Relu,
+	"sigmoid": utils.Sigmoid,
+	"tanh":    utils.Tanh,
+	"linear":  utils.Linear,
 }
 
-func InitNetwork(inputs, hidden, outputs int) *NeuralNetwork {
-	
+var activationDerivatives = map[string]Activation{
+	"relu":    utils.ReluDerivative,
+	"sigmoid": utils.SigmoidDerivative,
+	"tanh":    utils.TanhDerivative,
+	"linear":  utils.LinearDerivative,
+}
 
+type NeuralNetwork struct {
+	NumInputs            int         `json:"numInputs"`
+	NumHidden            int         `json:"numHidden"`
+	NumOutputs           int         `json:"numOutputs"`
+	HiddenWeights        [][]float64 `json:"hiddenWeights"`
+	OutputWeights        [][]float64 `json:"outputWeights"`
+	HiddenBiases         []float64   `json:"hiddenBiases"`
+	OutputBiases         []float64   `json:"outputBiases"`
+	HiddenActivation     string      `json:"hiddenActivation"`
+	OutputActivation     string      `json:"outputActivation"`
+	hiddenActivationFunc Activation  `json:"-"`
+	outputActivationFunc Activation  `json:"-"`
+	hiddenDerivativeFunc Activation  `json:"-"`
+	outputDerivativeFunc Activation  `json:"-"`
+}
+
+func InitNetwork(inputs, hidden, outputs int, hiddenActivation, outputActivation string) *NeuralNetwork {
 	hiddenWeights := make([][]float64, hidden)
 	heInitHidden := math.Sqrt(2.0 / float64(inputs))
 	for i := range hiddenWeights {
@@ -42,15 +62,26 @@ func InitNetwork(inputs, hidden, outputs int) *NeuralNetwork {
 	hiddenBiases := make([]float64, hidden)
 	outputBiases := make([]float64, outputs)
 
-	return &NeuralNetwork{
-		NumInputs:     inputs,
-		NumHidden:     hidden,
-		NumOutputs:    outputs,
-		HiddenWeights: hiddenWeights,
-		OutputWeights: outputWeights,
-		HiddenBiases:  hiddenBiases,
-		OutputBiases:  outputBiases,
+	nn := &NeuralNetwork{
+		NumInputs:        inputs,
+		NumHidden:        hidden,
+		NumOutputs:       outputs,
+		HiddenWeights:    hiddenWeights,
+		OutputWeights:    outputWeights,
+		HiddenBiases:     hiddenBiases,
+		OutputBiases:     outputBiases,
+		HiddenActivation: hiddenActivation,
+		OutputActivation: outputActivation,
 	}
+	nn.SetActivationFunctions()
+	return nn
+}
+
+func (nn *NeuralNetwork) SetActivationFunctions() {
+	nn.hiddenActivationFunc = activationFunctions[nn.HiddenActivation]
+	nn.outputActivationFunc = activationFunctions[nn.OutputActivation]
+	nn.hiddenDerivativeFunc = activationDerivatives[nn.HiddenActivation]
+	nn.outputDerivativeFunc = activationDerivatives[nn.OutputActivation]
 }
 
 func (nn *NeuralNetwork) FeedForward(inputs []float64) ([]float64, []float64) {
@@ -61,7 +92,7 @@ func (nn *NeuralNetwork) FeedForward(inputs []float64) ([]float64, []float64) {
 		for j := 0; j < nn.NumInputs; j++ {
 			sum += inputs[j] * nn.HiddenWeights[i][j]
 		}
-		hiddenOutputs[i] = utils.Relu(sum + nn.HiddenBiases[i])
+		hiddenOutputs[i] = nn.hiddenActivationFunc(sum + nn.HiddenBiases[i])
 	}
 
 	// Calculate final outputs
@@ -71,7 +102,7 @@ func (nn *NeuralNetwork) FeedForward(inputs []float64) ([]float64, []float64) {
 		for j := 0; j < nn.NumHidden; j++ {
 			sum += hiddenOutputs[j] * nn.OutputWeights[i][j]
 		}
-		finalOutputs[i] = sum + nn.OutputBiases[i] // Linear output
+		finalOutputs[i] = nn.outputActivationFunc(sum + nn.OutputBiases[i])
 	}
 
 	return hiddenOutputs, finalOutputs
@@ -83,7 +114,7 @@ func (nn *NeuralNetwork) Backpropagate(inputs, targets, hiddenOutputs, finalOutp
 	outputDeltas := make([]float64, nn.NumOutputs)
 	for i := 0; i < nn.NumOutputs; i++ {
 		outputErrors[i] = targets[i] - finalOutputs[i]
-		outputDeltas[i] = outputErrors[i] // Derivative of linear function is 1
+		outputDeltas[i] = outputErrors[i] * nn.outputDerivativeFunc(finalOutputs[i])
 	}
 
 	// Calculate hidden layer errors and deltas
@@ -95,7 +126,7 @@ func (nn *NeuralNetwork) Backpropagate(inputs, targets, hiddenOutputs, finalOutp
 			sum += outputDeltas[j] * nn.OutputWeights[j][i]
 		}
 		hiddenErrors[i] = sum
-		hiddenDeltas[i] = hiddenErrors[i] * utils.ReluDerivative(hiddenOutputs[i])
+		hiddenDeltas[i] = hiddenErrors[i] * nn.hiddenDerivativeFunc(hiddenOutputs[i])
 	}
 
 	// Update output weights and biases
@@ -133,10 +164,10 @@ func (nn *NeuralNetwork) Train(inputs, targets [][]float64, epochs int, learning
 		avgError := totalError / float64(len(inputs))
 		fmt.Printf("\rEpoch %d/%d, Error: %f", epoch+1, epochs, avgError)
 
-        if avgError < errorGoal {
-            fmt.Printf("\nError goal reached at epoch %d\n", epoch+1)
-            break
-        }
+		if avgError < errorGoal {
+			fmt.Printf("\nError goal reached at epoch %d\n", epoch+1)
+			break
+		}
 	}
 	fmt.Println()
 }
