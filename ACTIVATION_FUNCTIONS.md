@@ -13,17 +13,13 @@ efficient and helps to mitigate the vanishing gradient problem that can occur
 with other activation functions like sigmoid and tanh.
 
 **Formula:**
-$
-f(x) = \max(0, x)
-$
+$f(x) = \max(0, x)$
 This means that if the input `x` is positive, the function returns `x`, and if
 it's negative, it returns `0`.
 
 **Derivative:**
 The derivative of ReLU is:
-$
-f'(x) = \begin{cases} 1 & \text{if } x > 0 \\ 0 & \text{if } x < 0 \end{cases}
-$
+$f'(x) = \begin{cases} 1 & \text{if } x > 0 \\ 0 & \text{if } x < 0 \end{cases}$
 It is undefined at `x = 0`, though it's often set to `0` in practice.
 
 **Use Cases:**
@@ -40,15 +36,11 @@ makes it particularly useful for models where we need to predict a probability
 as an output.
 
 **Formula:**
-$
-f(x) = \frac{1}{1 + e^{-x}}
-$
+$f(x) = \frac{1}{1 + e^{-x}}$
 Where `e` is Euler's number.
 
 **Derivative:**
-$
-f'(x) = f(x)(1 - f(x))
-$
+$f'(x) = f(x)(1 - f(x))$
 
 **Use Cases:**
 
@@ -67,14 +59,10 @@ it centers the output around zero, which can sometimes help with convergence
 during training.
 
 **Formula:**
-$
-f(x) = \tanh(x)
-$
+$f(x) = \tanh(x)$
 
 **Derivative:**
-$
-f'(x) = 1 - \tanh^2(x)
-$
+$f'(x) = 1 - \tanh^2(x)$
 
 **Use Cases:**
 
@@ -90,14 +78,10 @@ simply returns the input value. It does not introduce any non-linearity into
 the network.
 
 **Formula:**
-$
-f(x) = x
-$
+$f(x) = x$
 
 **Derivative:**
-$
-f'(x) = 1
-$
+$f'(x) = 1$
 
 **Use Cases:**
 
