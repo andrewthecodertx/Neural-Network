@@ -31,12 +31,17 @@ func trainModel() {
 	file := getStringWithDefault(reader, "data file", "data.csv")
 	inputCount := getIntWithDefault(reader, "inputs", 11)
 	outputCount := getIntWithDefault(reader, "outputs", 1)
-	hiddenCount := getIntWithDefault(reader, "hidden neurons", 16)
-	hiddenActivation := getActivationWithDefault(reader, "hidden activation (relu, sigmoid, tanh, linear)", "relu")
+	hiddenLayers := getIntSliceWithDefault(reader, "hidden layers (comma-separated)", []int{16})
+	hiddenActivations := getStringSliceWithDefault(reader, "hidden activations (comma-separated)", []string{"relu"})
 	outputActivation := getActivationWithDefault(reader, "output activation (relu, sigmoid, tanh, linear)", "linear")
 	epochs := getIntWithDefault(reader, "epochs", 200)
 	learningRate := getFloatWithDefault(reader, "learning rate", 0.05)
 	errorGoal := getFloatWithDefault(reader, "error goal", 0.005)
+
+	if len(hiddenLayers) != len(hiddenActivations) {
+		fmt.Println("Number of hidden layers must match number of hidden activations.")
+		return
+	}
 
 	var inputs [][]float64
 	var targets [][]float64
@@ -52,7 +57,7 @@ func trainModel() {
 		return
 	}
 
-	nn := neuralnetwork.InitNetwork(inputCount, hiddenCount, outputCount, hiddenActivation, outputActivation)
+	nn := neuralnetwork.InitNetwork(inputCount, hiddenLayers, outputCount, hiddenActivations, outputActivation)
 
 	nn.Train(inputs, targets, epochs, learningRate, errorGoal)
 
@@ -173,4 +178,34 @@ func getActivationWithDefault(reader *bufio.Reader, prompt, defaultValue string)
 		return defaultValue
 	}
 	return input
+}
+
+func getIntSliceWithDefault(reader *bufio.Reader, prompt string, defaultValue []int) []int {
+	fmt.Printf("%s (default: %v): ", prompt, defaultValue)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return defaultValue
+	}
+	parts := strings.Split(input, ",")
+	result := make([]int, len(parts))
+	for i, part := range parts {
+		val, err := strconv.Atoi(strings.TrimSpace(part))
+		if err != nil {
+			fmt.Printf("Invalid input, using default value: %v\n", defaultValue)
+			return defaultValue
+		}
+		result[i] = val
+	}
+	return result
+}
+
+func getStringSliceWithDefault(reader *bufio.Reader, prompt string, defaultValue []string) []string {
+	fmt.Printf("%s (default: %v): ", prompt, defaultValue)
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return defaultValue
+	}
+	return strings.Split(input, ",")
 }

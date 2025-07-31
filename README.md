@@ -7,17 +7,12 @@ models and loading pre-trained models for prediction.
 ## Features
 
 * **Modular Design:** Code is organized into separate packages (`cli`, `data`, `neuralnetwork`, `utils`) for better maintainability and reusability.
-* **Feed-Forward Neural Network:** A basic implementation of a neural network
-with input, hidden, and output layers.
+* **Dynamic Network Architecture:** A feed-forward neural network with a configurable number of hidden layers and neurons per layer.
+* **Multiple Activation Functions:** Supports `ReLU`, `Sigmoid`, `Tanh`, and `Linear` activation functions for each hidden layer and the output layer.
 * **Training:** Train the neural network using your own CSV data.
 * **Model Persistence:** Save and load trained models to/from `model.json` files.
 * **Prediction:** Use a loaded model to make predictions on new input data.
-* **He Initialization:** Weights are initialized using He initialization for
-ReLU activation functions.
-* **ReLU Activation:** The hidden layer uses the Rectified Linear Unit (ReLU)
-activation function.
-* **Linear Output:** The output layer uses a linear activation function,
-suitable for regression tasks.
+* **He Initialization:** Weights are initialized using He initialization.
 * **Backpropagation:** Implements the backpropagation algorithm for training.
 
 ## Getting Started
@@ -65,10 +60,11 @@ If you choose `t`, you will be asked for several parameters:
 * **data file:** (default: `data.csv`) The path to your CSV training data.
 * **inputs:** (default: 11) The number of input features in your dataset.
 * **outputs:** (default: 1) The number of output features in your dataset.
-* **hidden neurons:** (default: 16) The number of neurons in the hidden layer.
+* **hidden layers (comma-separated):** (default: [16]) A comma-separated list of the number of neurons in each hidden layer.
+* **hidden activations (comma-separated):** (default: [relu]) A comma-separated list of activation functions for each hidden layer.
+* **output activation (relu, sigmoid, tanh, linear):** (default: linear) The activation function for the output layer.
 * **epochs:** (default: 200) The number of training iterations.
-* **learning rate:** (default: 0.05) The learning rate for the backpropagation
-algorithm.
+* **learning rate:** (default: 0.05) The learning rate for the backpropagation algorithm.
 * **error goal:** (default: 0.005) The target error to stop training early.
 
 After training, the model will be saved to `model.json`.
@@ -87,13 +83,10 @@ Prediction for input: [predicted_value]
 
 ## Future Enhancements
 
-* **Dynamic Network Architecture:** Allow the user to define the number of
-hidden layers and neurons per layer.
 * **Dockerization:** Provide a Docker image for easier deployment and use.
-* **More Activation Functions:** Implement additional activation functions
-(e.g., sigmoid, tanh).
-* **Command-Line Arguments:** Allow all parameters to be passed via
-command-line arguments instead of interactive prompts.
+* **Command-Line Arguments:** Allow all parameters to be passed via command-line arguments instead of interactive prompts.
+* **Additional Optimizers:** Implement other optimization algorithms like Adam or RMSprop.
+* **Regularization:** Add support for L1/L2 regularization to prevent overfitting.
 
 ## Contributing
 
