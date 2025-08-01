@@ -3,209 +3,175 @@ package cli
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
 	"go-neuralnetwork/internal/data"
 	"go-neuralnetwork/internal/neuralnetwork"
+	"go-neuralnetwork/internal/tui"
 )
 
+const modelsDir = "saved_models"
+
 func RunCLI() {
-	var choice string
-	fmt.Print("Do you want to (t)rain a new model or (l)oad an existing model? (t/l): ")
-	fmt.Scanln(&choice)
+	if err := os.MkdirAll(modelsDir, os.ModePerm); err != nil {
+		log.Fatalf("Failed to create models directory: %v", err)
+	}
 
-	if choice == "t" || choice == "T" {
-		trainModel()
-	} else if choice == "l" || choice == "L" {
-		loadAndPredict()
-	} else {
-		fmt.Println("Invalid choice. Please enter 't' or 'l'.")
+	if len(os.Args) < 2 {
+		printUsage()
+		return
+	}
+
+	command := os.Args[1]
+	switch command {
+	case "train":
+		runTrainingWithTUI()
+	case "predict":
+		runPrediction()
+	default:
+		fmt.Println("Unknown command:", command)
+		printUsage()
 	}
 }
 
-func trainModel() {
+func printUsage() {
+	fmt.Println("Usage: go-neuralnetwork <command>")
+	fmt.Println("Commands:")
+	fmt.Println("  train      Launch the interactive TUI to train a new model")
+	fmt.Println("  predict    Load a model and make a prediction")
+}
+
+func runTrainingWithTUI() {
+	// Find available CSV files
+	csvFiles, err := filepath.Glob("*.csv")
+	if err != nil || len(csvFiles) == 0 {
+		log.Fatalf("No CSV files found in the current directory.")
+	}
+
+	// Launch the TUI
+	tuiModel := tui.New(csvFiles)
+	params, err := tuiModel.Run()
+	if err != nil {
+		if err.Error() == "training cancelled" {
+			fmt.Println("Training cancelled.")
+			os.Exit(0)
+		}
+		log.Fatalf("Could not start TUI: %v", err)
+	}
+
+	// Load the data using the selected CSV
+	inputs, targets, inputSize, outputSize, inputMins, inputMaxs, targetMins, targetMaxs, err := data.LoadCSV(params.CsvPath)
+	if err != nil {
+		log.Fatalf("Failed to load data: %v", err)
+	}
+	fmt.Printf("Loaded %s: %d inputs, %d outputs\n", params.CsvPath, inputSize, outputSize)
+
+	// Initialize and train the network with parameters from the TUI
+	nn := neuralnetwork.InitNetwork(inputSize, params.HiddenLayers, outputSize, params.HiddenActivations, params.OutputActivation)
+	nn.Train(inputs, targets, params.Epochs, params.LearningRate, params.ErrorGoal)
+
+	fmt.Println("\nTraining complete.")
+
+	// Prompt to save the model
+	fmt.Print("Enter a name to save this model (or press Enter to skip): ")
 	reader := bufio.NewReader(os.Stdin)
+	modelName, _ := reader.ReadString('\n')
+	modelName = strings.TrimSpace(modelName)
 
-	file := getStringWithDefault(reader, "data file", "data.csv")
-	inputCount := getIntWithDefault(reader, "inputs", 11)
-	outputCount := getIntWithDefault(reader, "outputs", 1)
-	hiddenLayers := getIntSliceWithDefault(reader, "hidden layers (comma-separated)", []int{16})
-	hiddenActivations := getStringSliceWithDefault(reader, "hidden activations (comma-separated)", []string{"relu"})
-	outputActivation := getActivationWithDefault(reader, "output activation (relu, sigmoid, tanh, linear)", "linear")
-	epochs := getIntWithDefault(reader, "epochs", 200)
-	learningRate := getFloatWithDefault(reader, "learning rate", 0.05)
-	errorGoal := getFloatWithDefault(reader, "error goal", 0.005)
-
-	if len(hiddenLayers) != len(hiddenActivations) {
-		fmt.Println("Number of hidden layers must match number of hidden activations.")
-		return
-	}
-
-	var inputs [][]float64
-	var targets [][]float64
-	var targetMins []float64
-	var targetMaxs []float64
-	var inputMins []float64
-	var inputMaxs []float64
-	var err error
-
-	inputs, targets, targetMins, targetMaxs, inputMins, inputMaxs, err = data.LoadCSV(file, inputCount, outputCount)
-	if err != nil {
-		fmt.Printf("Error loading CSV: %v\n", err)
-		return
-	}
-
-	nn := neuralnetwork.InitNetwork(inputCount, hiddenLayers, outputCount, hiddenActivations, outputActivation)
-
-	nn.Train(inputs, targets, epochs, learningRate, errorGoal)
-
-	modelFileName := "model.json"
-	md := &data.ModelData{
-		NN:         nn,
-		TargetMins: targetMins,
-		TargetMaxs: targetMaxs,
-		InputMins:  inputMins,
-		InputMaxs:  inputMaxs,
-	}
-	err = md.SaveModel(modelFileName)
-	if err != nil {
-		fmt.Printf("Error saving model: %v\n", err)
-	} else {
-		fmt.Printf("Model saved to %s\n", modelFileName)
+	if modelName != "" {
+		modelPath := filepath.Join(modelsDir, modelName+".json")
+		modelData := &data.ModelData{
+			NN:         nn,
+			InputMins:  inputMins,
+			InputMaxs:  inputMaxs,
+			TargetMins: targetMins,
+			TargetMaxs: targetMaxs,
+		}
+		if err := modelData.SaveModel(modelPath); err != nil {
+			log.Fatalf("Failed to save model: %v", err)
+		}
+		fmt.Printf("Model saved to %s\n", modelPath)
 	}
 }
 
-func loadAndPredict() {
-	modelFileName := "model.json"
-	var md *data.ModelData
-	var err error
-	md, err = data.LoadModel(modelFileName)
+func runPrediction() {
+	files, err := os.ReadDir(modelsDir)
 	if err != nil {
-		fmt.Printf("Error loading model: %v\n", err)
+		log.Fatalf("Failed to read models directory: %v", err)
+	}
+
+	var models []string
+	for _, file := range files {
+		if !file.IsDir() && strings.HasSuffix(file.Name(), ".json") {
+			models = append(models, file.Name())
+		}
+	}
+
+	if len(models) == 0 {
+		fmt.Println("No saved models found in the 'saved_models' directory.")
 		return
 	}
-	md.NN.SetActivationFunctions()
-	fmt.Printf("Model loaded from %s\n", modelFileName)
 
+	fmt.Println("Please select a model to load:")
+	for i, modelName := range models {
+		fmt.Printf("  %d: %s\n", i+1, modelName)
+	}
+
+	fmt.Print("Enter the number of the model: ")
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Enter input values for prediction (comma-separated):")
-	inputValuesStr, _ := reader.ReadString('\n')
-	inputValuesStr = strings.TrimSpace(inputValuesStr)
+	input, _ := reader.ReadString('\n')
+	selection := strings.TrimSpace(input)
 
-	// Parse input values
-	inputStrings := strings.Split(inputValuesStr, ",")
-	inputValues := make([]float64, len(inputStrings))
-	for i, s := range inputStrings {
+	selectedIndex := 0
+	_, err = fmt.Sscanf(selection, "%d", &selectedIndex)
+	if err != nil || selectedIndex < 1 || selectedIndex > len(models) {
+		log.Fatalf("Invalid selection.")
+	}
+
+	modelName := models[selectedIndex-1]
+	modelPath := filepath.Join(modelsDir, modelName)
+
+	modelData, err := data.LoadModel(modelPath)
+	if err != nil {
+		log.Fatalf("Failed to load model: %v", err)
+	}
+	modelData.NN.SetActivationFunctions()
+	fmt.Printf("Model '%s' loaded successfully.\n\n", modelName)
+
+	// Check if the model has the required normalization data
+	if modelData.InputMins == nil || modelData.InputMaxs == nil || modelData.TargetMins == nil || modelData.TargetMaxs == nil {
+		log.Fatalf("Error: The selected model '%s' is outdated or was not saved correctly. It is missing the required normalization data. Please train and save a new model.", modelName)
+	}
+
+	// Get new data from user
+	fmt.Printf("Enter the %d input values, separated by commas: ", modelData.NN.NumInputs)
+	inputStr, _ := reader.ReadString('\n')
+	inputStrs := strings.Split(strings.TrimSpace(inputStr), ",")
+
+	if len(inputStrs) != modelData.NN.NumInputs {
+		log.Fatalf("Error: Expected %d input values, but got %d.", modelData.NN.NumInputs, len(inputStrs))
+	}
+
+	// Parse and normalize the input
+	predictionInput := make([]float64, modelData.NN.NumInputs)
+	for i, s := range inputStrs {
 		val, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
 		if err != nil {
-			fmt.Printf("Invalid input: %v\n", err)
-			return
+			log.Fatalf("Invalid input value: %v", err)
 		}
-		inputValues[i] = val
+		// Normalize
+		predictionInput[i] = (val - modelData.InputMins[i]) / (modelData.InputMaxs[i] - modelData.InputMins[i])
 	}
 
-	// Normalize input values
-	if len(inputValues) != md.NN.NumInputs {
-		fmt.Printf("Expected %d input values, got %d\n", md.NN.NumInputs, len(inputValues))
-		return
-	}
-	normalizedInput := make([]float64, md.NN.NumInputs)
-	for i := range inputValues {
-		if md.InputMaxs[i]-md.InputMins[i] == 0 {
-			normalizedInput[i] = 0 // Avoid division by zero
-		} else {
-			normalizedInput[i] = (inputValues[i] - md.InputMins[i]) / (md.InputMaxs[i] - md.InputMins[i])
-		}
-	}
+	// Make the prediction
+	_, predictionOutput := modelData.NN.FeedForward(predictionInput)
 
-	_, prediction := md.NN.FeedForward(normalizedInput)
-	denormalizedPrediction := prediction[0]*(md.TargetMaxs[0]-md.TargetMins[0]) + md.TargetMins[0]
-	fmt.Printf("Prediction for input: %v\n", denormalizedPrediction)
-}
+	// Denormalize the output
+	finalPrediction := predictionOutput[0]*(modelData.TargetMaxs[0]-modelData.TargetMins[0]) + modelData.TargetMins[0]
 
-func getStringWithDefault(reader *bufio.Reader, prompt, defaultValue string) string {
-	fmt.Printf("%s (default: %s): ", prompt, defaultValue)
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return defaultValue
-	}
-	return input
-}
-
-func getIntWithDefault(reader *bufio.Reader, prompt string, defaultValue int) int {
-	fmt.Printf("%s (default: %d): ", prompt, defaultValue)
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return defaultValue
-	}
-	val, err := strconv.Atoi(input)
-	if err != nil {
-		fmt.Printf("Invalid input, using default value: %d\n", defaultValue)
-		return defaultValue
-	}
-	return val
-}
-
-func getFloatWithDefault(reader *bufio.Reader, prompt string, defaultValue float64) float64 {
-	fmt.Printf("%s (default: %.4f): ", prompt, defaultValue)
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return defaultValue
-	}
-	val, err := strconv.ParseFloat(input, 64)
-	if err != nil {
-		fmt.Printf("Invalid input, using default value: %.4f\n", defaultValue)
-		return defaultValue
-	}
-	return val
-}
-
-func getActivationWithDefault(reader *bufio.Reader, prompt, defaultValue string) string {
-	fmt.Printf("%s (default: %s): ", prompt, defaultValue)
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return defaultValue
-	}
-	// Basic validation, can be improved
-	if input != "relu" && input != "sigmoid" && input != "tanh" && input != "linear" {
-		fmt.Printf("Invalid activation function, using default value: %s\n", defaultValue)
-		return defaultValue
-	}
-	return input
-}
-
-func getIntSliceWithDefault(reader *bufio.Reader, prompt string, defaultValue []int) []int {
-	fmt.Printf("%s (default: %v): ", prompt, defaultValue)
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return defaultValue
-	}
-	parts := strings.Split(input, ",")
-	result := make([]int, len(parts))
-	for i, part := range parts {
-		val, err := strconv.Atoi(strings.TrimSpace(part))
-		if err != nil {
-			fmt.Printf("Invalid input, using default value: %v\n", defaultValue)
-			return defaultValue
-		}
-		result[i] = val
-	}
-	return result
-}
-
-func getStringSliceWithDefault(reader *bufio.Reader, prompt string, defaultValue []string) []string {
-	fmt.Printf("%s (default: %v): ", prompt, defaultValue)
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-	if input == "" {
-		return defaultValue
-	}
-	return strings.Split(input, ",")
+	fmt.Printf("\nPredicted Output: %f\n", finalPrediction)
 }

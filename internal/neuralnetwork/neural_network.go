@@ -198,4 +198,3 @@ func (nn *NeuralNetwork) Train(inputs, targets [][]float64, epochs int, learning
 	}
 	fmt.Println()
 }
-

@@ -9,10 +9,10 @@ import (
 
 type ModelData struct {
 	NN         *neuralnetwork.NeuralNetwork `json:"neuralNetwork"`
-	TargetMins []float64                    `json:"targetMins"`
-	TargetMaxs []float64                    `json:"targetMaxs"`
 	InputMins  []float64                    `json:"inputMins"`
 	InputMaxs  []float64                    `json:"inputMaxs"`
+	TargetMins []float64                    `json:"targetMins"`
+	TargetMaxs []float64                    `json:"targetMaxs"`
 }
 
 func (md *ModelData) SaveModel(filePath string) error {
