@@ -13,7 +13,6 @@ import (
 // Styles
 var (
 	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	noStyle      = lipgloss.NewStyle()
 	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 )
 
