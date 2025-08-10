@@ -1,7 +1,6 @@
 package neuralnetwork
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
 
