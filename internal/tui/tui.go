@@ -26,7 +26,7 @@ type (
 	epochNum int
 		loss     float64
 	}
-	trainingFinishedMsg struct{}
+	trainingFinishedMsg struct{ modelData *data.ModelData }
 	predictionResultMsg struct{ result float64 }
 )
 
@@ -77,7 +77,7 @@ func (m *Model) runTraining() tea.Cmd {
 		errorGoal, _ := strconv.ParseFloat(egStr, 64)
 
 		// Load data
-		inputs, targets, inputSize, outputSize, _, _, _, _, err := data.LoadCSV(csvPath)
+		inputs, targets, inputSize, outputSize, inputMins, inputMaxs, targetMins, targetMaxs, err := data.LoadCSV(csvPath)
 		if err != nil {
 			// TODO: Send an error message
 			return nil
@@ -92,7 +92,14 @@ func (m *Model) runTraining() tea.Cmd {
 		// Goroutine to run training and send messages
 		go func() {
 			nn.Train(inputs, targets, epochs, learningRate, errorGoal, progressChan)
-			m.program.Send(trainingFinishedMsg{})
+			modelData := &data.ModelData{
+				NN:         nn,
+				InputMins:  inputMins,
+				InputMaxs:  inputMaxs,
+				TargetMins: targetMins,
+				TargetMaxs: targetMaxs,
+			}
+			m.program.Send(trainingFinishedMsg{modelData: modelData})
 		}()
 
 		// Goroutine to listen for progress and update the TUI
@@ -133,6 +140,7 @@ const (
 	trainingInProgress
 	predictionForm
 	predictionResult
+	saveModelForm
 )
 
 // Styles
@@ -157,6 +165,8 @@ type Model struct {
 	menuChoices     []string
 	trainingForm    trainingFormModel
 	predictionForm  predictionFormModel
+	saveModelInput  textinput.Model
+	modelData       *data.ModelData
 	program         *tea.Program
 	quitting        bool
 	terminalWidth   int
@@ -241,11 +251,18 @@ func newPredictionForm() predictionFormModel {
 
 // New creates a new TUI model.
 func New() *Model {
+	saveInput := textinput.New()
+	saveInput.Placeholder = "my-awesome-model"
+	saveInput.Focus()
+	saveInput.CharLimit = 64
+	saveInput.Width = 50
+
 	return &Model{
 		state:          mainMenu,
 		menuChoices:    []string{"Train New Model", "Load Model & Predict", "Quit"},
 		trainingForm:   newTrainingForm(),
 		predictionForm: newPredictionForm(),
+		saveModelInput: saveInput,
 	}
 }
 
@@ -294,7 +311,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case trainingFinishedMsg:
-		m.state = mainMenu // Or a results screen
+		m.modelData = msg.modelData
+		m.state = saveModelForm
 		return m, nil
 
 	case predictionResultMsg:
@@ -320,6 +338,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.state = mainMenu
 			}
 			return m, nil
+		case saveModelForm:
+			return m.updateSaveModelForm(msg)
 		}
 	}
 
@@ -635,6 +655,38 @@ func (m *Model) runPrediction() tea.Cmd {
 
 func (m *Model) viewPredictionResult() string {
 	return fmt.Sprintf("Prediction Result: %f\n\n(Press enter to return to main menu)", m.predictionValue)
+}
+
+func (m *Model) updateSaveModelForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch msg.String() {
+	case "enter":
+		modelName := m.saveModelInput.Value()
+		if modelName != "" {
+			modelPath := filepath.Join("saved_models", modelName+".json")
+			if err := m.modelData.SaveModel(modelPath); err != nil {
+				// TODO: Handle error
+			}
+		}
+		m.state = mainMenu
+		return m, nil
+
+	case "ctrl+c", "q":
+		m.state = mainMenu
+		return m, nil
+	}
+
+	m.saveModelInput, cmd = m.saveModelInput.Update(msg)
+	return m, cmd
+}
+
+func (m *Model) viewSaveModelForm() string {
+	return fmt.Sprintf(
+		"Training complete!\n\nEnter a name to save this model (or press Enter to skip):\n\n%s\n\n%s",
+		m.saveModelInput.View(),
+		helpStyle.Render("enter: save | q: skip"),
+	)
 }
 
 // Start begins the TUI application.
