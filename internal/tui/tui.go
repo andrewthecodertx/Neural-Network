@@ -86,17 +86,22 @@ func (m *Model) runTraining() tea.Cmd {
 		// Initialize network
 		nn := neuralnetwork.InitNetwork(inputSize, hiddenLayers, outputSize, hiddenActivations, outputActivation)
 
+		// This channel will receive training progress
+		progressChan := make(chan interface{})
+
 		// Goroutine to run training and send messages
 		go func() {
-			for i := 0; i < epochs; i++ {
-				loss := nn.TrainEpoch(inputs, targets, learningRate)
-				m.program.Send(epochCompletedMsg{epochNum: i + 1, loss: loss})
-				time.Sleep(5 * time.Millisecond) // To make the UI updates visible
-				if loss < errorGoal {
-					break
-				}
-			}
+			nn.Train(inputs, targets, epochs, learningRate, errorGoal, progressChan)
 			m.program.Send(trainingFinishedMsg{})
+		}()
+
+		// Goroutine to listen for progress and update the TUI
+		go func() {
+			epochNum := 1
+			for loss := range progressChan {
+				m.program.Send(epochCompletedMsg{epochNum: epochNum, loss: loss.(float64)})
+				epochNum++
+			}
 		}()
 
 		return trainingStartedMsg{}
@@ -274,25 +279,25 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		fmt.Println("Error finding models:", msg.err)
 		return m, tea.Quit
 
-	trainingStartedMsg:
+	case trainingStartedMsg:
 		m.state = trainingInProgress
-	epochs, _ := strconv.Atoi(m.trainingForm.inputs[4].Value())
+		epochs, _ := strconv.Atoi(m.trainingForm.inputs[4].Value())
 		if epochs == 0 {
 			epochs = 1000
 		}
 		m.totalEpochs = epochs
 		return m, nil
 
-	epochCompletedMsg:
+	case epochCompletedMsg:
 		m.currentEpoch = msg.epochNum
 		m.lastLoss = msg.loss
 		return m, nil
 
-	trainingFinishedMsg:
+	case trainingFinishedMsg:
 		m.state = mainMenu // Or a results screen
 		return m, nil
 
-	predictionResultMsg:
+	case predictionResultMsg:
 		m.state = predictionResult
 		m.predictionValue = msg.result
 		return m, nil
@@ -303,7 +308,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateMainMenu(msg)
 		case trainingForm:
 			return m.updateTrainingForm(msg)
-		trainingInProgress:
+		case trainingInProgress:
 			if msg.String() == "q" {
 				m.state = mainMenu
 			}

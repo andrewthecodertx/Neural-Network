@@ -179,7 +179,9 @@ func (nn *NeuralNetwork) Backpropagate(inputs []float64, targets []float64, hidd
 	}
 }
 
-func (nn *NeuralNetwork) Train(inputs, targets [][]float64, epochs int, learningRate float64, errorGoal float64) {
+func (nn *NeuralNetwork) Train(inputs, targets [][]float64, epochs int, learningRate float64, errorGoal float64, progressChan chan<- interface{}) {
+	defer close(progressChan) // Ensure the channel is closed when training is done
+
 	for epoch := 0; epoch < epochs; epoch++ {
 		totalError := 0.0
 		for i := range inputs {
@@ -190,11 +192,12 @@ func (nn *NeuralNetwork) Train(inputs, targets [][]float64, epochs int, learning
 			}
 		}
 		avgError := totalError / float64(len(inputs))
-		fmt.Printf("\rEpoch %d/%d, Error: %f", epoch+1, epochs, avgError)
+
+		// Send progress update
+		progressChan <- avgError
+
 		if avgError < errorGoal {
-			fmt.Printf("\nError goal reached at epoch %d\n", epoch+1)
 			break
 		}
 	}
-	fmt.Println()
 }
