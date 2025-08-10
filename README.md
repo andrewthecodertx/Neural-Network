@@ -22,70 +22,50 @@ and `Linear` activation functions for each hidden layer and the output layer.
 
 To run this application, you need to have Go installed on your system.
 
-1. **Clone the repository:**
+1.  **Clone the repository:**
 
     ```bash
-    git clone https://github.com/andrewthecodertx/go-neuralnetwork.git
-    cd go-neuralnetwork
+    git clone https://github.com/andrewthecodertx/Neural-Network.git
+    cd Neural-Network
     ```
 
-2. **Run the application:**
+2.  **Run the application:**
+
+    The application now features a full-screen terminal user interface (TUI).
 
     ```bash
     go run .
     ```
 
-## Training Data
-
-The project includes a `data.csv` file, which is a sample dataset for training.
-This data is based on the **Red Wine Quality dataset** from the
-[UCI Machine Learning Repository](https://archive.ics.uci.edu/ml/datasets/Wine+Quality).
-
-**Dataset Description:**
-The dataset contains physicochemical properties of red wines and their
-corresponding quality ratings. It has 11 input features (e.g., fixed acidity,
-volatile acidity, citric acid, alcohol) and 1 output feature
-(quality, a score between 0 and 10).
-
 ## Usage
 
-When you run the application, you will be prompted to either train a new model
-or load an existing one:
+Upon launching the application, you will be greeted with the main menu. You can navigate through the interface using the arrow keys and press `Enter` to select an option. Press `q` or `Ctrl+C` to quit at any time.
 
-```
-Do you want to (t)rain a new model or (l)oad an existing model? (t/l):
-```
+### Train New Model
 
-### Training a New Model (`t`)
+1.  **Select "Train New Model"** from the main menu.
+2.  The application will automatically find any `.csv` files in the root directory.
+3.  Fill out the configuration form:
+    *   **Select CSV File:** The number corresponding to the dataset you want to use.
+    *   **Hidden Layers:** A comma-separated list of neuron counts for each hidden layer (e.g., `20,20`).
+    *   **Hidden Activations:** A comma-separated list of activation functions (`relu`, `sigmoid`, `tanh`, `linear`).
+    *   **Output Activation:** The activation function for the output layer.
+    *   **Epochs:** The number of training iterations.
+    *   **Learning Rate:** The step size for gradient descent.
+    *   **Error Goal:** The target error at which training will stop.
+4.  Navigate to the **"[ Start Training ]"** button and press `Enter`.
+5.  A live progress view will show the current epoch and loss.
+6.  Once training is complete, you will be prompted to enter a name to save the model. The saved model will be placed in the `saved_models/` directory.
 
-If you choose `t`, you will be asked for several parameters:
+### Load Model & Predict
 
-* **data file:** (default: `data.csv`) The path to your CSV training data.
-* **inputs:** (default: 11) The number of input features in your dataset.
-* **outputs:** (default: 1) The number of output features in your dataset.
-* **hidden layers (comma-separated):** (default: [16]) A comma-separated list
-of the number of neurons in each hidden layer.
-* **hidden activations (comma-separated):** (default: [relu]) A comma-separated
-list of activation functions for each hidden layer.
-* **output activation (relu, sigmoid, tanh, linear):** (default: linear) The
-activation function for the output layer.
-* **epochs:** (default: 200) The number of training iterations.
-* **learning rate:** (default: 0.05) The learning rate for the backpropagation algorithm.
-* **error goal:** (default: 0.005) The target error to stop training early.
-
-After training, the model will be saved to `model.json`.
-
-### Loading an Existing Model (`l`)
-
-If you choose `l`, the application will attempt to load `model.json`. Once
-loaded, you can enter comma-separated input values for prediction:
-
-```text
-Model loaded from model.json
-Enter input values for prediction (space-separated):
-5.6,0.31,0.78,13.9,0.074,23.0,92.0,0.99677,3.39,0.48,10.5
-Prediction for input: [predicted_value]
-```
+1.  **Select "Load Model & Predict"** from the main menu.
+2.  The application will list all models found in the `saved_models/` directory.
+3.  Fill out the prediction form:
+    *   **Select Model:** The number corresponding to the model you want to use.
+    *   **Input Data:** A comma-separated list of numerical values for prediction. The number of values must match the model's expected input size.
+4.  Navigate to the **"[ Predict ]"** button and press `Enter`.
+5.  The calculated prediction will be displayed on the screen.
 
 ## Future Enhancements
 
