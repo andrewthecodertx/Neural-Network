@@ -4,18 +4,104 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"go-neuralnetwork/internal/data"
+	"go-neuralnetwork/internal/neuralnetwork"
 )
 
 // Messages
 type (
-	csvFilesLoadedMsg struct{ files []string }
-	errCsvFiles       struct{ err error }
+	csvFilesLoadedMsg   struct{ files []string }
+	errCsvFiles         struct{ err error }
+	modelsLoadedMsg     struct{ models []string }
+	errModels           struct{ err error }
+	trainingStartedMsg  struct{}
+	epochCompletedMsg   struct {
+	epochNum int
+		loss     float64
+	}
+	trainingFinishedMsg struct{}
+	predictionResultMsg struct{ result float64 }
 )
+
+func (m *Model) runTraining() tea.Cmd {
+	return func() tea.Msg {
+		// TODO: Add error handling for parsing
+		// Parse values from inputs
+		csvIndex, _ := strconv.Atoi(m.trainingForm.inputs[0].Value())
+		csvPath := m.trainingForm.csvFiles[csvIndex-1]
+
+		layersStr := m.trainingForm.inputs[1].Value()
+		if layersStr == "" {
+			layersStr = "20,20"
+		}
+		hiddenLayers := []int{}
+		for _, s := range strings.Split(layersStr, ",") {
+			i, _ := strconv.Atoi(strings.TrimSpace(s))
+			hiddenLayers = append(hiddenLayers, i)
+		}
+
+		activationsStr := m.trainingForm.inputs[2].Value()
+		if activationsStr == "" {
+			activationsStr = "relu,relu"
+		}
+		hiddenActivations := strings.Split(activationsStr, ",")
+
+		outputActivation := m.trainingForm.inputs[3].Value()
+		if outputActivation == "" {
+			outputActivation = "linear"
+		}
+
+		epochsStr := m.trainingForm.inputs[4].Value()
+		if epochsStr == "" {
+			epochsStr = "1000"
+		}
+		epochs, _ := strconv.Atoi(epochsStr)
+
+		lrStr := m.trainingForm.inputs[5].Value()
+		if lrStr == "" {
+			lrStr = "0.001"
+		}
+		learningRate, _ := strconv.ParseFloat(lrStr, 64)
+
+		egStr := m.trainingForm.inputs[6].Value()
+		if egStr == "" {
+			egStr = "0.001"
+		}
+		errorGoal, _ := strconv.ParseFloat(egStr, 64)
+
+		// Load data
+		inputs, targets, inputSize, outputSize, _, _, _, _, err := data.LoadCSV(csvPath)
+		if err != nil {
+			// TODO: Send an error message
+			return nil
+		}
+
+		// Initialize network
+		nn := neuralnetwork.InitNetwork(inputSize, hiddenLayers, outputSize, hiddenActivations, outputActivation)
+
+		// Goroutine to run training and send messages
+		go func() {
+			for i := 0; i < epochs; i++ {
+				loss := nn.TrainEpoch(inputs, targets, learningRate)
+				m.program.Send(epochCompletedMsg{epochNum: i + 1, loss: loss})
+				time.Sleep(5 * time.Millisecond) // To make the UI updates visible
+				if loss < errorGoal {
+					break
+				}
+			}
+			m.program.Send(trainingFinishedMsg{})
+		}()
+
+		return trainingStartedMsg{}
+	}
+}
 
 func findCsvFiles() tea.Msg {
 	files, err := filepath.Glob("*.csv")
@@ -23,6 +109,14 @@ func findCsvFiles() tea.Msg {
 		return errCsvFiles{err}
 	}
 	return csvFilesLoadedMsg{files}
+}
+
+func findModels() tea.Msg {
+	files, err := filepath.Glob("saved_models/*.json")
+	if err != nil {
+		return errModels{err}
+	}
+	return modelsLoadedMsg{models: files}
 }
 
 // sessionState represents the current view of the TUI.
@@ -33,6 +127,7 @@ const (
 	trainingForm
 	trainingInProgress
 	predictionForm
+	predictionResult
 )
 
 // Styles
@@ -52,13 +147,19 @@ var (
 
 // Model represents the state of the entire application.
 type Model struct {
-	state          sessionState
-	menuCursor     int
-	menuChoices    []string
-	trainingForm   trainingFormModel
-	quitting       bool
-	terminalWidth  int
-	terminalHeight int
+	state           sessionState
+	menuCursor      int
+	menuChoices     []string
+	trainingForm    trainingFormModel
+	predictionForm  predictionFormModel
+	program         *tea.Program
+	quitting        bool
+	terminalWidth   int
+	terminalHeight  int
+	lastLoss        float64
+	currentEpoch    int
+	totalEpochs     int
+	predictionValue float64
 }
 
 // trainingFormModel holds the state for the training configuration form.
@@ -66,6 +167,13 @@ type trainingFormModel struct {
 	focusIndex int
 	inputs     []textinput.Model
 	csvFiles   []string
+}
+
+// predictionFormModel holds the state for the prediction form.
+type predictionFormModel struct {
+	focusIndex int
+	inputs     []textinput.Model
+	models     []string
 }
 
 func newTrainingForm() trainingFormModel {
@@ -102,22 +210,47 @@ func newTrainingForm() trainingFormModel {
 	return m
 }
 
+func newPredictionForm() predictionFormModel {
+	m := predictionFormModel{
+		inputs: make([]textinput.Model, 2),
+	}
+
+	var t textinput.Model
+	for i := range m.inputs {
+		t = textinput.New()
+		t.Cursor.Style = focusedStyle
+		t.CharLimit = 128
+
+		switch i {
+		case 0:
+			t.Placeholder = "1"
+			t.Focus()
+		case 1:
+			t.Placeholder = "e.g., 7.4,0.7,0,1.9,0.076,11,34,0.9978,3.51,0.56,9.4"
+		}
+		m.inputs[i] = t
+	}
+
+	return m
+}
+
 // New creates a new TUI model.
-func New() Model {
-	return Model{
-		state:        mainMenu,
-		menuChoices:  []string{"Train New Model", "Load Model & Predict", "Quit"},
-		trainingForm: newTrainingForm(),
+func New() *Model {
+	return &Model{
+		state:          mainMenu,
+		menuChoices:    []string{"Train New Model", "Load Model & Predict", "Quit"},
+		trainingForm:   newTrainingForm(),
+		predictionForm: newPredictionForm(),
 	}
 }
 
 // Init initializes the TUI.
-func (m Model) Init() tea.Cmd {
+func (m *Model) Init() tea.Cmd {
 	return textinput.Blink
 }
 
 // Update handles messages and updates the model.
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.terminalWidth = msg.Width
@@ -132,18 +265,66 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		fmt.Println("Error finding CSV files:", msg.err)
 		return m, tea.Quit
 
+	case modelsLoadedMsg:
+		m.predictionForm.models = msg.models
+		return m, nil
+
+	case errModels:
+		// TODO: Handle this error more gracefully
+		fmt.Println("Error finding models:", msg.err)
+		return m, tea.Quit
+
+	trainingStartedMsg:
+		m.state = trainingInProgress
+	epochs, _ := strconv.Atoi(m.trainingForm.inputs[4].Value())
+		if epochs == 0 {
+			epochs = 1000
+		}
+		m.totalEpochs = epochs
+		return m, nil
+
+	epochCompletedMsg:
+		m.currentEpoch = msg.epochNum
+		m.lastLoss = msg.loss
+		return m, nil
+
+	trainingFinishedMsg:
+		m.state = mainMenu // Or a results screen
+		return m, nil
+
+	predictionResultMsg:
+		m.state = predictionResult
+		m.predictionValue = msg.result
+		return m, nil
+
 	case tea.KeyMsg:
 		switch m.state {
 		case mainMenu:
 			return m.updateMainMenu(msg)
 		case trainingForm:
 			return m.updateTrainingForm(msg)
+		trainingInProgress:
+			if msg.String() == "q" {
+				m.state = mainMenu
+			}
+			return m, nil
+		case predictionForm:
+			return m.updatePredictionForm(msg)
+		case predictionResult:
+			if msg.String() == "enter" || msg.String() == "q" {
+				m.state = mainMenu
+			}
+			return m, nil
 		}
 	}
 
-	// Handle character input for the training form
+	// Handle character input for the forms
 	if m.state == trainingForm {
 		cmd := m.updateTrainingInputs(msg)
+		return m, cmd
+	}
+	if m.state == predictionForm {
+		cmd := m.updatePredictionInputs(msg)
 		return m, cmd
 	}
 
@@ -173,8 +354,9 @@ func (m *Model) updateMainMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.state = trainingForm
 			return m, findCsvFiles
 		case 1:
-			// Transition to prediction form (to be implemented)
+			// Transition to prediction form
 			m.state = predictionForm
+			return m, findModels
 		case 2:
 			m.quitting = true
 			return m, tea.Quit
@@ -183,7 +365,7 @@ func (m *Model) updateMainMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) viewMainMenu() string {
+func (m *Model) viewMainMenu() string {
 	s := titleStyle.Render("Go Neural Network")
 	s += "\n\n"
 
@@ -201,10 +383,7 @@ func (m Model) viewMainMenu() string {
 }
 
 // View renders the UI.
-
-// View renders the UI.
-
-func (m Model) View() string {
+func (m *Model) View() string {
 	if m.quitting {
 		return "Quitting...\n"
 	}
@@ -215,7 +394,12 @@ func (m Model) View() string {
 		s = m.viewMainMenu()
 	case trainingForm:
 		s = m.viewTrainingForm()
-	// Other views will be rendered here later
+	case trainingInProgress:
+		s = m.viewTrainingInProgress()
+	case predictionForm:
+		s = m.viewPredictionForm()
+	case predictionResult:
+		s = m.viewPredictionResult()
 	default:
 		s = "Unknown state."
 	}
@@ -235,8 +419,7 @@ func (m *Model) updateTrainingForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 		// Did the user press enter while the button is focused?
 		if s == "enter" && m.trainingForm.focusIndex == len(m.trainingForm.inputs) {
-			// TODO: Start training
-			return m, nil
+			return m, m.runTraining()
 		}
 
 		// Cycle focus
@@ -288,7 +471,7 @@ func (m *Model) updateTrainingInputs(msg tea.Msg) tea.Cmd {
 	return tea.Batch(cmds...)
 }
 
-func (m Model) viewTrainingForm() string {
+func (m *Model) viewTrainingForm() string {
 	var b strings.Builder
 
 	b.WriteString("Neural Network Training Configuration\n\n")
@@ -327,28 +510,134 @@ func (m Model) viewTrainingForm() string {
 	return b.String()
 }
 
-// Start begins the TUI application.
-func Start() {
-	p := tea.NewProgram(New(), tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("Alas, there's been an error: %v", err)
-		os.Exit(1)
+func (m *Model) viewTrainingInProgress() string {
+	return fmt.Sprintf("Training in progress...\n\nEpoch: %d/%d\nLoss: %f\n\n(Press 'q' to stop)", m.currentEpoch, m.totalEpochs, m.lastLoss)
+}
+
+func (m *Model) updatePredictionForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		m.state = mainMenu
+		return m, nil
+
+	case "tab", "shift+tab", "enter", "up", "down":
+		s := msg.String()
+
+		if s == "enter" && m.predictionForm.focusIndex == len(m.predictionForm.inputs) {
+			return m, m.runPrediction()
+		}
+
+		if s == "up" || s == "shift+tab" {
+			m.predictionForm.focusIndex--
+		} else {
+			m.predictionForm.focusIndex++
+		}
+
+		if m.predictionForm.focusIndex > len(m.predictionForm.inputs) {
+			m.predictionForm.focusIndex = 0
+		} else if m.predictionForm.focusIndex < 0 {
+			m.predictionForm.focusIndex = len(m.predictionForm.inputs)
+		}
+
+		cmds := make([]tea.Cmd, len(m.predictionForm.inputs))
+		for i := 0; i <= len(m.predictionForm.inputs)-1; i++ {
+			if i == m.predictionForm.focusIndex {
+				cmds[i] = m.predictionForm.inputs[i].Focus()
+				m.predictionForm.inputs[i].PromptStyle = focusedStyle
+				m.predictionForm.inputs[i].TextStyle = focusedStyle
+				continue
+			}
+			m.predictionForm.inputs[i].Blur()
+			m.predictionForm.inputs[i].PromptStyle = lipgloss.NewStyle()
+			m.predictionForm.inputs[i].TextStyle = lipgloss.NewStyle()
+		}
+
+		return m, tea.Batch(cmds...)
 	}
+
+	cmd := m.updatePredictionInputs(msg)
+	return m, cmd
+}
+
+func (m *Model) updatePredictionInputs(msg tea.Msg) tea.Cmd {
+	cmds := make([]tea.Cmd, len(m.predictionForm.inputs))
+
+	for i := range m.predictionForm.inputs {
+		if m.predictionForm.inputs[i].Focused() {
+			m.predictionForm.inputs[i], cmds[i] = m.predictionForm.inputs[i].Update(msg)
+		}
+	}
+
+	return tea.Batch(cmds...)
+}
+
+func (m *Model) viewPredictionForm() string {
+	var b strings.Builder
+
+	b.WriteString("Load Model & Predict\n\n")
+
+	b.WriteString("Available Models:\n")
+	if len(m.predictionForm.models) == 0 {
+		b.WriteString("  (No models found in saved_models/)\n")
+	} else {
+		for i, model := range m.predictionForm.models {
+			b.WriteString(fmt.Sprintf("  %d: %s\n", i+1, filepath.Base(model)))
+		}
+	}
+	b.WriteString("\n")
+
+	fmt.Fprintf(&b, "Select Model (number): %s\n", m.predictionForm.inputs[0].View())
+	fmt.Fprintf(&b, "Input Data (comma-separated): %s\n", m.predictionForm.inputs[1].View())
+	b.WriteString("\n")
+
+	button := "[ Predict ]"
+	if m.predictionForm.focusIndex == len(m.predictionForm.inputs) {
+		b.WriteString(focusedStyle.Render(button))
+	} else {
+		b.WriteString(button)
+	}
+
+	b.WriteString(helpStyle.Render("\n\n  ↑/↓, tab/shift+tab: navigate | enter: select | q: back\n"))
+
+	return b.String()
+}
+
+func (m *Model) runPrediction() tea.Cmd {
+	return func() tea.Msg {
+		modelIndex, _ := strconv.Atoi(m.predictionForm.inputs[0].Value())
+		modelPath := m.predictionForm.models[modelIndex-1]
+
+		modelData, err := data.LoadModel(modelPath)
+		if err != nil {
+			// TODO: Handle error
+			return nil
+		}
+		modelData.NN.SetActivationFunctions()
+
+		inputStrs := strings.Split(strings.TrimSpace(m.predictionForm.inputs[1].Value()), ",")
+		predictionInput := make([]float64, modelData.NN.NumInputs)
+		for i, s := range inputStrs {
+			val, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
+			predictionInput[i] = (val - modelData.InputMins[i]) / (modelData.InputMaxs[i] - modelData.InputMins[i])
+		}
+
+		_, predictionOutput := modelData.NN.FeedForward(predictionInput)
+		finalPrediction := predictionOutput[0]*(modelData.TargetMaxs[0]-modelData.TargetMins[0]) + modelData.TargetMins[0]
+
+		return predictionResultMsg{result: finalPrediction}
+	}
+}
+
+func (m *Model) viewPredictionResult() string {
+	return fmt.Sprintf("Prediction Result: %f\n\n(Press enter to return to main menu)", m.predictionValue)
 }
 
 // Start begins the TUI application.
 func Start() {
-	p := tea.NewProgram(New(), tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("Alas, there's been an error: %v", err)
-		os.Exit(1)
-	}
-}
+	m := New()
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	m.program = p
 
-
-// Start begins the TUI application.
-func Start() {
-	p := tea.NewProgram(New(), tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("Alas, there's been an error: %v", err)
 		os.Exit(1)
