@@ -17,23 +17,24 @@ import (
 // Messages
 type (
 	csvFilesLoadedMsg   struct{ files []string }
-	errCsvFiles         struct{ err error }
 	modelsLoadedMsg     struct{ models []string }
-	errModels           struct{ err error }
 	trainingStartedMsg  struct{}
 	epochCompletedMsg   struct {
-	epochNum int
+		epochNum int
 		loss     float64
 	}
 	trainingFinishedMsg struct{ modelData *data.ModelData }
 	predictionResultMsg struct{ result float64 }
+	errorMsg            struct{ err error }
 )
 
 func (m *Model) runTraining() tea.Cmd {
 	return func() tea.Msg {
-		// TODO: Add error handling for parsing
-		// Parse values from inputs
-		csvIndex, _ := strconv.Atoi(m.trainingForm.inputs[0].Value())
+		// --- Input Validation ---
+		csvIndex, err := strconv.Atoi(m.trainingForm.inputs[0].Value())
+		if err != nil || csvIndex < 1 || csvIndex > len(m.trainingForm.csvFiles) {
+			return errorMsg{fmt.Errorf("invalid CSV file selection")}
+		}
 		csvPath := m.trainingForm.csvFiles[csvIndex-1]
 
 		layersStr := m.trainingForm.inputs[1].Value()
@@ -42,7 +43,10 @@ func (m *Model) runTraining() tea.Cmd {
 		}
 		hiddenLayers := []int{}
 		for _, s := range strings.Split(layersStr, ",") {
-			i, _ := strconv.Atoi(strings.TrimSpace(s))
+			i, err := strconv.Atoi(strings.TrimSpace(s))
+			if err != nil {
+				return errorMsg{fmt.Errorf("invalid hidden layers: %w", err)}
+			}
 			hiddenLayers = append(hiddenLayers, i)
 		}
 
@@ -61,25 +65,33 @@ func (m *Model) runTraining() tea.Cmd {
 		if epochsStr == "" {
 			epochsStr = "1000"
 		}
-		epochs, _ := strconv.Atoi(epochsStr)
+		epochs, err := strconv.Atoi(epochsStr)
+		if err != nil {
+			return errorMsg{fmt.Errorf("invalid epochs value: %w", err)}
+		}
 
 		lrStr := m.trainingForm.inputs[5].Value()
 		if lrStr == "" {
 			lrStr = "0.001"
 		}
-		learningRate, _ := strconv.ParseFloat(lrStr, 64)
+		learningRate, err := strconv.ParseFloat(lrStr, 64)
+		if err != nil {
+			return errorMsg{fmt.Errorf("invalid learning rate: %w", err)}
+		}
 
 		egStr := m.trainingForm.inputs[6].Value()
 		if egStr == "" {
 			egStr = "0.001"
 		}
-		errorGoal, _ := strconv.ParseFloat(egStr, 64)
+		errorGoal, err := strconv.ParseFloat(egStr, 64)
+		if err != nil {
+			return errorMsg{fmt.Errorf("invalid error goal: %w", err)}
+		}
 
 		// Load data
 		inputs, targets, inputSize, outputSize, inputMins, inputMaxs, targetMins, targetMaxs, err := data.LoadCSV(csvPath)
 		if err != nil {
-			// TODO: Send an error message
-			return nil
+			return errorMsg{fmt.Errorf("failed to load CSV data: %w", err)}
 		}
 
 		// Initialize network
@@ -117,7 +129,7 @@ func (m *Model) runTraining() tea.Cmd {
 func findCsvFiles() tea.Msg {
 	files, err := filepath.Glob("*.csv")
 	if err != nil {
-		return errCsvFiles{err}
+		return errorMsg{err}
 	}
 	return csvFilesLoadedMsg{files}
 }
@@ -125,7 +137,7 @@ func findCsvFiles() tea.Msg {
 func findModels() tea.Msg {
 	files, err := filepath.Glob("saved_models/*.json")
 	if err != nil {
-		return errModels{err}
+		return errorMsg{err}
 	}
 	return modelsLoadedMsg{models: files}
 }
@@ -140,21 +152,23 @@ const (
 	predictionForm
 	predictionResult
 	saveModelForm
+	errorView
 )
 
 // Styles
 var (
 	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("#FAFAFA")).
-			Background(lipgloss.Color("#7D56F4")).
-			PaddingLeft(1).
-			PaddingRight(1)
+		Bold(true).
+		Foreground(lipgloss.Color("#FAFAFA")).
+		Background(lipgloss.Color("#7D56F4")).
+		PaddingLeft(1).
+		PaddingRight(1)
 
 	menuItemStyle         = lipgloss.NewStyle().PaddingLeft(2)
 	selectedMenuItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("205"))
 	helpStyle             = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Padding(1, 0, 0, 2)
 	focusedStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	errorStyle            = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF8700"))
 )
 
 // Model represents the state of the entire application.
@@ -167,6 +181,7 @@ type Model struct {
 	saveModelInput  textinput.Model
 	modelData       *data.ModelData
 	program         *tea.Program
+	lastError       error
 	quitting        bool
 	terminalWidth   int
 	terminalHeight  int
@@ -281,19 +296,14 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.trainingForm.csvFiles = msg.files
 		return m, nil
 
-	case errCsvFiles:
-		// TODO: Handle this error more gracefully
-		fmt.Println("Error finding CSV files:", msg.err)
-		return m, tea.Quit
-
 	case modelsLoadedMsg:
 		m.predictionForm.models = msg.models
 		return m, nil
 
-	case errModels:
-		// TODO: Handle this error more gracefully
-		fmt.Println("Error finding models:", msg.err)
-		return m, tea.Quit
+	case errorMsg:
+		m.lastError = msg.err
+		m.state = errorView
+		return m, nil
 
 	case trainingStartedMsg:
 		m.state = trainingInProgress
@@ -339,6 +349,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case saveModelForm:
 			return m.updateSaveModelForm(msg)
+		case errorView:
+			if msg.String() == "enter" || msg.String() == "q" {
+				m.state = mainMenu
+			}
+			return m, nil
 		}
 	}
 
@@ -424,6 +439,10 @@ func (m *Model) View() string {
 		s = m.viewPredictionForm()
 	case predictionResult:
 		s = m.viewPredictionResult()
+	case saveModelForm:
+		s = m.viewSaveModelForm()
+	case errorView:
+		s = m.viewError()
 	default:
 		s = "Unknown state."
 	}
@@ -628,20 +647,29 @@ func (m *Model) viewPredictionForm() string {
 
 func (m *Model) runPrediction() tea.Cmd {
 	return func() tea.Msg {
-		modelIndex, _ := strconv.Atoi(m.predictionForm.inputs[0].Value())
+		modelIndex, err := strconv.Atoi(m.predictionForm.inputs[0].Value())
+		if err != nil || modelIndex < 1 || modelIndex > len(m.predictionForm.models) {
+			return errorMsg{fmt.Errorf("invalid model selection")}
+		}
 		modelPath := m.predictionForm.models[modelIndex-1]
 
 		modelData, err := data.LoadModel(modelPath)
 		if err != nil {
-			// TODO: Handle error
-			return nil
+			return errorMsg{fmt.Errorf("failed to load model: %w", err)}
 		}
 		modelData.NN.SetActivationFunctions()
 
 		inputStrs := strings.Split(strings.TrimSpace(m.predictionForm.inputs[1].Value()), ",")
+		if len(inputStrs) != modelData.NN.NumInputs {
+			return errorMsg{fmt.Errorf("expected %d input values, but got %d", modelData.NN.NumInputs, len(inputStrs))}
+		}
+
 		predictionInput := make([]float64, modelData.NN.NumInputs)
 		for i, s := range inputStrs {
-			val, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
+			val, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+			if err != nil {
+				return errorMsg{fmt.Errorf("invalid input value: %v", err)}
+			}
 			predictionInput[i] = (val - modelData.InputMins[i]) / (modelData.InputMaxs[i] - modelData.InputMins[i])
 		}
 
@@ -665,7 +693,7 @@ func (m *Model) updateSaveModelForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if modelName != "" {
 			modelPath := filepath.Join("saved_models", modelName+".json")
 			if err := m.modelData.SaveModel(modelPath); err != nil {
-				// TODO: Handle error
+				return m, func() tea.Msg { return errorMsg{err} }
 			}
 		}
 		m.state = mainMenu
@@ -685,6 +713,14 @@ func (m *Model) viewSaveModelForm() string {
 		"Training complete!\n\nEnter a name to save this model (or press Enter to skip):\n\n%s\n\n%s",
 		m.saveModelInput.View(),
 		helpStyle.Render("enter: save | q: skip"),
+	)
+}
+
+func (m *Model) viewError() string {
+	return fmt.Sprintf(
+		"An error occurred:\n\n%s\n\n%s",
+		errorStyle.Render(m.lastError.Error()),
+		helpStyle.Render("Press enter or q to return to the main menu."),
 	)
 }
 
