@@ -127,3 +127,68 @@ func TestSaveAndLoadModel(t *testing.T) {
 		t.Errorf("Loaded model does not match original model")
 	}
 }
+
+func TestBackpropagate(t *testing.T) {
+	nn := &neuralnetwork.NeuralNetwork{
+		NumInputs:         2,
+		HiddenLayers:      []int{2},
+		NumOutputs:        1,
+		HiddenWeights:     [][][]float64{{{0.1, 0.2}, {0.3, 0.4}}},
+		OutputWeights:     [][]float64{{0.5, 0.6}},
+		HiddenBiases:      [][]float64{{0.0, 0.0}},
+		OutputBiases:      []float64{0.0},
+		HiddenActivations: []string{"sigmoid"},
+		OutputActivation:  "sigmoid",
+	}
+	nn.SetActivationFunctions()
+
+	inputs := []float64{1.0, 1.0}
+	targets := []float64{1.0}
+	learningRate := 0.1
+
+	// Create copies of weights and biases before backpropagation
+	originalHiddenWeights := deepCopy3D(nn.HiddenWeights)
+	originalOutputWeights := deepCopy2D(nn.OutputWeights)
+	originalHiddenBiases := deepCopy2D(nn.HiddenBiases)
+	originalOutputBiases := deepCopy1D(nn.OutputBiases)
+
+	hiddenOutputs, finalOutputs := nn.FeedForward(inputs)
+	nn.Backpropagate(inputs, targets, hiddenOutputs, finalOutputs, learningRate)
+
+	// Check if weights and biases have been updated
+	if reflect.DeepEqual(originalHiddenWeights, nn.HiddenWeights) {
+		t.Errorf("Hidden weights were not updated")
+	}
+	if reflect.DeepEqual(originalOutputWeights, nn.OutputWeights) {
+		t.Errorf("Output weights were not updated")
+	}
+	if reflect.DeepEqual(originalHiddenBiases, nn.HiddenBiases) {
+		t.Errorf("Hidden biases were not updated")
+	}
+	if reflect.DeepEqual(originalOutputBiases, nn.OutputBiases) {
+		t.Errorf("Output biases were not updated")
+	}
+}
+
+// Helper functions for deep copying slices
+func deepCopy3D(slice [][][]float64) [][][]float64 {
+	newSlice := make([][][]float64, len(slice))
+	for i, s := range slice {
+		newSlice[i] = deepCopy2D(s)
+	}
+	return newSlice
+}
+
+func deepCopy2D(slice [][]float64) [][]float64 {
+	newSlice := make([][]float64, len(slice))
+	for i, s := range slice {
+		newSlice[i] = deepCopy1D(s)
+	}
+	return newSlice
+}
+
+func deepCopy1D(slice []float64) []float64 {
+	newSlice := make([]float64, len(slice))
+	copy(newSlice, slice)
+	return newSlice
+}

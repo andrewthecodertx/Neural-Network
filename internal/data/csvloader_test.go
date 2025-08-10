@@ -34,23 +34,13 @@ func TestLoadCSV(t *testing.T) {
 	}
 	defer os.Remove(filePath1)
 
-	inputs1, targets1, targetMins1, targetMaxs1, inputMins1, inputMaxs1, err1 := data.LoadCSV(filePath1, 2, 1)
+	inputs1, targets1, _, _, inputMins1, inputMaxs1, targetMins1, targetMaxs1, err1 := data.LoadCSV(filePath1)
 	if err1 != nil {
 		t.Fatalf("Test Case 1: Unexpected error: %v", err1)
 	}
 
-	expectedInputs1 := [][]float64{{
-		0.0, 0.0,
-	},
-	{
-		1.0, 1.0,
-	},}
-	expectedTargets1 := [][]float64{{
-		0.0,
-	},
-	{
-		1.0,
-	},}
+	expectedInputs1 := [][]float64{{0.0, 0.0}, {1.0, 1.0}}
+	expectedTargets1 := [][]float64{{0.0}, {1.0}}
 	expectedTargetMins1 := []float64{3.0}
 	expectedTargetMaxs1 := []float64{6.0}
 	expectedInputMins1 := []float64{1.0, 2.0}
@@ -76,7 +66,7 @@ func TestLoadCSV(t *testing.T) {
 	}
 
 	// Test case 2: Invalid file path
-	_, _, _, _, _, _, err2 := data.LoadCSV("nonexistent.csv", 1, 1)
+	_, _, _, _, _, _, _, _, err2 := data.LoadCSV("nonexistent.csv")
 	if err2 == nil {
 		t.Errorf("Test Case 2: Expected an error for invalid file path, got nil")
 	}
@@ -89,7 +79,7 @@ func TestLoadCSV(t *testing.T) {
 	}
 	defer os.Remove(filePath3)
 
-	_, _, _, _, _, _, err3 := data.LoadCSV(filePath3, 1, 1)
+	_, _, _, _, _, _, _, _, err3 := data.LoadCSV(filePath3)
 	if err3 == nil {
 		t.Errorf("Test Case 3: Expected an error for empty CSV, got nil")
 	}
@@ -103,7 +93,7 @@ abc,1.0`
 	}
 	defer os.Remove(filePath4)
 
-	_, _, _, _, _, _, err4 := data.LoadCSV(filePath4, 1, 1)
+	_, _, _, _, _, _, _, _, err4 := data.LoadCSV(filePath4)
 	if err4 == nil {
 		t.Errorf("Test Case 4: Expected an error for non-numeric data, got nil")
 	}

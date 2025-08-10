@@ -1,28 +1,12 @@
 package neuralnetwork
 
 import (
+	"fmt"
 	"math"
 	"math/rand"
-
-	"go-neuralnetwork/internal/utils"
 )
 
-type Activation func(float64) float64
-
-var activationFunctions = map[string]Activation{
-	"relu":    utils.Relu,
-	"sigmoid": utils.Sigmoid,
-	"tanh":    utils.Tanh,
-	"linear":  utils.Linear,
-}
-
-var activationDerivatives = map[string]Activation{
-	"relu":    utils.ReluDerivative,
-	"sigmoid": utils.SigmoidDerivative,
-	"tanh":    utils.TanhDerivative,
-	"linear":  utils.LinearDerivative,
-}
-
+// NeuralNetwork represents a multi-layer perceptron.
 type NeuralNetwork struct {
 	NumInputs             int           `json:"numInputs"`
 	HiddenLayers          []int         `json:"hiddenLayers"`
@@ -35,17 +19,18 @@ type NeuralNetwork struct {
 	OutputActivation      string        `json:"outputActivation"`
 	hiddenActivationFuncs []Activation  `json:"-"`
 	outputActivationFunc  Activation    `json:"-"`
-	hiddenDerivativeFuncs []Activation  `json:"-"`
-	outputDerivativeFunc  Activation    `json:"-"`
 }
 
+// InitNetwork initializes a new neural network with random weights and biases.
 func InitNetwork(inputs int, hiddenLayers []int, outputs int, hiddenActivations []string, outputActivation string) *NeuralNetwork {
 	hiddenWeights := make([][][]float64, len(hiddenLayers))
 	hiddenBiases := make([][]float64, len(hiddenLayers))
 	prevLayerSize := inputs
 
+	// Initialize hidden layers
 	for i, layerSize := range hiddenLayers {
 		hiddenWeights[i] = make([][]float64, layerSize)
+		// He initialization for weights
 		heInit := math.Sqrt(2.0 / float64(prevLayerSize))
 		for j := range hiddenWeights[i] {
 			hiddenWeights[i][j] = make([]float64, prevLayerSize)
@@ -57,7 +42,9 @@ func InitNetwork(inputs int, hiddenLayers []int, outputs int, hiddenActivations 
 		prevLayerSize = layerSize
 	}
 
+	// Initialize output layer
 	outputWeights := make([][]float64, outputs)
+	// He initialization for weights
 	heInitOutput := math.Sqrt(2.0 / float64(prevLayerSize))
 	for i := range outputWeights {
 		outputWeights[i] = make([]float64, prevLayerSize)
@@ -82,21 +69,45 @@ func InitNetwork(inputs int, hiddenLayers []int, outputs int, hiddenActivations 
 	return nn
 }
 
-func (nn *NeuralNetwork) SetActivationFunctions() {
+// SetActivationFunctions sets the activation functions for each layer.
+func (nn *NeuralNetwork) SetActivationFunctions() error {
 	nn.hiddenActivationFuncs = make([]Activation, len(nn.HiddenActivations))
-	nn.hiddenDerivativeFuncs = make([]Activation, len(nn.HiddenActivations))
 	for i, activation := range nn.HiddenActivations {
-		nn.hiddenActivationFuncs[i] = activationFunctions[activation]
-		nn.hiddenDerivativeFuncs[i] = activationDerivatives[activation]
+		switch activation {
+		case "relu":
+			nn.hiddenActivationFuncs[i] = &ReLU{}
+		case "sigmoid":
+			nn.hiddenActivationFuncs[i] = &Sigmoid{}
+		case "tanh":
+			nn.hiddenActivationFuncs[i] = &Tanh{}
+		case "linear":
+			nn.hiddenActivationFuncs[i] = &Linear{}
+		default:
+			return fmt.Errorf("unknown activation function: %s", activation)
+		}
 	}
-	nn.outputActivationFunc = activationFunctions[nn.OutputActivation]
-	nn.outputDerivativeFunc = activationDerivatives[nn.OutputActivation]
+
+	switch nn.OutputActivation {
+	case "relu":
+		nn.outputActivationFunc = &ReLU{}
+	case "sigmoid":
+		nn.outputActivationFunc = &Sigmoid{}
+	case "tanh":
+		nn.outputActivationFunc = &Tanh{}
+	case "linear":
+		nn.outputActivationFunc = &Linear{}
+	default:
+		return fmt.Errorf("unknown activation function: %s", nn.OutputActivation)
+	}
+	return nil
 }
 
+// FeedForward performs the feedforward pass of the neural network.
 func (nn *NeuralNetwork) FeedForward(inputs []float64) ([][]float64, []float64) {
 	hiddenOutputs := make([][]float64, len(nn.HiddenLayers))
 	layerInput := inputs
 
+	// Calculate hidden layer outputs
 	for i, layerSize := range nn.HiddenLayers {
 		hiddenOutputs[i] = make([]float64, layerSize)
 		for j := 0; j < layerSize; j++ {
@@ -104,31 +115,35 @@ func (nn *NeuralNetwork) FeedForward(inputs []float64) ([][]float64, []float64) 
 			for k := 0; k < len(layerInput); k++ {
 				sum += layerInput[k] * nn.HiddenWeights[i][j][k]
 			}
-			hiddenOutputs[i][j] = nn.hiddenActivationFuncs[i](sum + nn.HiddenBiases[i][j])
+			hiddenOutputs[i][j] = nn.hiddenActivationFuncs[i].Activate(sum + nn.HiddenBiases[i][j])
 		}
 		layerInput = hiddenOutputs[i]
 	}
 
+	// Calculate final output
 	finalOutputs := make([]float64, nn.NumOutputs)
 	for i := 0; i < nn.NumOutputs; i++ {
 		sum := 0.0
 		for j := 0; j < len(layerInput); j++ {
 			sum += layerInput[j] * nn.OutputWeights[i][j]
 		}
-		finalOutputs[i] = nn.outputActivationFunc(sum + nn.OutputBiases[i])
+		finalOutputs[i] = nn.outputActivationFunc.Activate(sum + nn.OutputBiases[i])
 	}
 
 	return hiddenOutputs, finalOutputs
 }
 
+// Backpropagate performs the backpropagation algorithm to update the weights and biases of the network.
 func (nn *NeuralNetwork) Backpropagate(inputs []float64, targets []float64, hiddenOutputs [][]float64, finalOutputs []float64, learningRate float64) {
+	// Calculate output layer errors and deltas
 	outputErrors := make([]float64, nn.NumOutputs)
 	outputDeltas := make([]float64, nn.NumOutputs)
 	for i := 0; i < nn.NumOutputs; i++ {
 		outputErrors[i] = targets[i] - finalOutputs[i]
-		outputDeltas[i] = outputErrors[i] * nn.outputDerivativeFunc(finalOutputs[i])
+		outputDeltas[i] = outputErrors[i] * nn.outputActivationFunc.Derivative(finalOutputs[i])
 	}
 
+	// Calculate hidden layer errors and deltas
 	hiddenErrors := make([][]float64, len(nn.HiddenLayers))
 	hiddenDeltas := make([][]float64, len(nn.HiddenLayers))
 	nextLayerDeltas := outputDeltas
@@ -144,7 +159,7 @@ func (nn *NeuralNetwork) Backpropagate(inputs []float64, targets []float64, hidd
 				sum += nextLayerDeltas[k] * nextLayerWeights[k][j]
 			}
 			hiddenErrors[i][j] = sum
-			hiddenDeltas[i][j] = hiddenErrors[i][j] * nn.hiddenDerivativeFuncs[i](hiddenOutputs[i][j])
+			hiddenDeltas[i][j] = hiddenErrors[i][j] * nn.hiddenActivationFuncs[i].Derivative(hiddenOutputs[i][j])
 		}
 		nextLayerDeltas = hiddenDeltas[i]
 		if i > 0 {
@@ -178,6 +193,7 @@ func (nn *NeuralNetwork) Backpropagate(inputs []float64, targets []float64, hidd
 	}
 }
 
+// Train trains the neural network using the provided training data, number of epochs, learning rate, and error goal.
 func (nn *NeuralNetwork) Train(inputs, targets [][]float64, epochs int, learningRate float64, errorGoal float64, progressChan chan<- interface{}) {
 	defer close(progressChan) // Ensure the channel is closed when training is done
 
@@ -186,6 +202,7 @@ func (nn *NeuralNetwork) Train(inputs, targets [][]float64, epochs int, learning
 		for i := range inputs {
 			hiddenOutputs, finalOutputs := nn.FeedForward(inputs[i])
 			nn.Backpropagate(inputs[i], targets[i], hiddenOutputs, finalOutputs, learningRate)
+			// Calculate mean squared error
 			for j := range targets[i] {
 				totalError += 0.5 * (targets[i][j] - finalOutputs[j]) * (targets[i][j] - finalOutputs[j])
 			}
@@ -195,6 +212,7 @@ func (nn *NeuralNetwork) Train(inputs, targets [][]float64, epochs int, learning
 		// Send progress update
 		progressChan <- avgError
 
+		// Stop training if the error goal is reached
 		if avgError < errorGoal {
 			break
 		}
