@@ -2,7 +2,8 @@ package tui
 
 import (
 	"fmt"
-	"strconv"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -10,38 +11,66 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Styles
-var (
-	focusedStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
-	helpStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
+// Messages
+type (
+	csvFilesLoadedMsg struct{ files []string }
+	errCsvFiles       struct{ err error }
 )
 
-// TrainingParams holds all the configurable values for the training session.
-type TrainingParams struct {
-	CsvPath           string
-	HiddenLayers      []int
-	HiddenActivations []string
-	OutputActivation  string
-	Epochs            int
-	LearningRate      float64
-	ErrorGoal         float64
+func findCsvFiles() tea.Msg {
+	files, err := filepath.Glob("*.csv")
+	if err != nil {
+		return errCsvFiles{err}
+	}
+	return csvFilesLoadedMsg{files}
 }
 
-// Model represents the state of the TUI.
+// sessionState represents the current view of the TUI.
+type sessionState uint
+
+const (
+	mainMenu sessionState = iota
+	trainingForm
+	trainingInProgress
+	predictionForm
+)
+
+// Styles
+var (
+	titleStyle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FAFAFA")).
+			Background(lipgloss.Color("#7D56F4")).
+			PaddingLeft(1).
+			PaddingRight(1)
+
+	menuItemStyle         = lipgloss.NewStyle().PaddingLeft(2)
+	selectedMenuItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("205"))
+	helpStyle             = lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Padding(1, 0, 0, 2)
+	focusedStyle          = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+)
+
+// Model represents the state of the entire application.
 type Model struct {
+	state          sessionState
+	menuCursor     int
+	menuChoices    []string
+	trainingForm   trainingFormModel
+	quitting       bool
+	terminalWidth  int
+	terminalHeight int
+}
+
+// trainingFormModel holds the state for the training configuration form.
+type trainingFormModel struct {
 	focusIndex int
 	inputs     []textinput.Model
-	params     *TrainingParams
 	csvFiles   []string
-	quitting   bool
 }
 
-// New creates a new TUI model.
-func New(csvFiles []string) Model {
-	m := Model{
-		inputs:   make([]textinput.Model, 7),
-		params:   &TrainingParams{},
-		csvFiles: csvFiles,
+func newTrainingForm() trainingFormModel {
+	m := trainingFormModel{
+		inputs: make([]textinput.Model, 7),
 	}
 
 	var t textinput.Model
@@ -73,173 +102,255 @@ func New(csvFiles []string) Model {
 	return m
 }
 
+// New creates a new TUI model.
+func New() Model {
+	return Model{
+		state:        mainMenu,
+		menuChoices:  []string{"Train New Model", "Load Model & Predict", "Quit"},
+		trainingForm: newTrainingForm(),
+	}
+}
+
 // Init initializes the TUI.
 func (m Model) Init() tea.Cmd {
 	return textinput.Blink
 }
 
-// Update handles user input and updates the model.
+// Update handles messages and updates the model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.terminalWidth = msg.Width
+		m.terminalHeight = msg.Height
+
+	case csvFilesLoadedMsg:
+		m.trainingForm.csvFiles = msg.files
+		return m, nil
+
+	case errCsvFiles:
+		// TODO: Handle this error more gracefully
+		fmt.Println("Error finding CSV files:", msg.err)
+		return m, tea.Quit
+
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q":
-			m.quitting = true
-			return m, tea.Quit
-
-		case "tab", "shift+tab", "enter", "up", "down":
-			s := msg.String()
-
-			if s == "enter" {
-				// If it's the last field, quit
-				if m.focusIndex == len(m.inputs) {
-					m.quitting = true
-					return m, tea.Quit
-				}
-				// Otherwise, move to the next field
-				m.nextInput()
-			}
-
-			if s == "up" || s == "shift+tab" {
-				m.prevInput()
-			} else {
-				m.nextInput()
-			}
-
-			// Unfocus all inputs
-			for i := range m.inputs {
-				m.inputs[i].Blur()
-			}
-			// Focus the current input
-			if m.focusIndex < len(m.inputs) {
-				m.inputs[m.focusIndex].Focus()
-			}
-
-			return m, nil
+		switch m.state {
+		case mainMenu:
+			return m.updateMainMenu(msg)
+		case trainingForm:
+			return m.updateTrainingForm(msg)
 		}
 	}
 
+	// Handle character input for the training form
+	if m.state == trainingForm {
+		cmd := m.updateTrainingInputs(msg)
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+func (m *Model) updateMainMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		m.quitting = true
+		return m, tea.Quit
+
+	case "up", "k":
+		if m.menuCursor > 0 {
+			m.menuCursor--
+		}
+
+	case "down", "j":
+		if m.menuCursor < len(m.menuChoices)-1 {
+			m.menuCursor++
+		}
+
+	case "enter":
+		switch m.menuCursor {
+		case 0:
+			// Transition to training form
+			m.state = trainingForm
+			return m, findCsvFiles
+		case 1:
+			// Transition to prediction form (to be implemented)
+			m.state = predictionForm
+		case 2:
+			m.quitting = true
+			return m, tea.Quit
+		}
+	}
+	return m, nil
+}
+
+func (m Model) viewMainMenu() string {
+	s := titleStyle.Render("Go Neural Network")
+	s += "\n\n"
+
+	for i, choice := range m.menuChoices {
+		if m.menuCursor == i {
+			s += selectedMenuItemStyle.Render(fmt.Sprintf("> %s", choice))
+		} else {
+			s += menuItemStyle.Render(fmt.Sprintf("  %s", choice))
+		}
+		s += "\n"
+	}
+
+	s += helpStyle.Render("Use arrow keys to navigate, 'enter' to select, 'q' to quit.")
+	return s
+}
+
+// View renders the UI.
+
+// View renders the UI.
+
+func (m Model) View() string {
+	if m.quitting {
+		return "Quitting...\n"
+	}
+
+	var s string
+	switch m.state {
+	case mainMenu:
+		s = m.viewMainMenu()
+	case trainingForm:
+		s = m.viewTrainingForm()
+	// Other views will be rendered here later
+	default:
+		s = "Unknown state."
+	}
+
+	return s
+}
+
+func (m *Model) updateTrainingForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		// Go back to the main menu
+		m.state = mainMenu
+		return m, nil
+
+	case "tab", "shift+tab", "enter", "up", "down":
+		s := msg.String()
+
+		// Did the user press enter while the button is focused?
+		if s == "enter" && m.trainingForm.focusIndex == len(m.trainingForm.inputs) {
+			// TODO: Start training
+			return m, nil
+		}
+
+		// Cycle focus
+		if s == "up" || s == "shift+tab" {
+			m.trainingForm.focusIndex--
+		} else {
+			m.trainingForm.focusIndex++
+		}
+
+		if m.trainingForm.focusIndex > len(m.trainingForm.inputs) {
+			m.trainingForm.focusIndex = 0
+		} else if m.trainingForm.focusIndex < 0 {
+			m.trainingForm.focusIndex = len(m.trainingForm.inputs)
+		}
+
+		cmds := make([]tea.Cmd, len(m.trainingForm.inputs))
+		for i := 0; i <= len(m.trainingForm.inputs)-1; i++ {
+			if i == m.trainingForm.focusIndex {
+				// Set focused state
+				cmds[i] = m.trainingForm.inputs[i].Focus()
+				m.trainingForm.inputs[i].PromptStyle = focusedStyle
+				m.trainingForm.inputs[i].TextStyle = focusedStyle
+				continue
+			}
+			// Remove focused state
+			m.trainingForm.inputs[i].Blur()
+			m.trainingForm.inputs[i].PromptStyle = lipgloss.NewStyle()
+			m.trainingForm.inputs[i].TextStyle = lipgloss.NewStyle()
+		}
+
+		return m, tea.Batch(cmds...)
+	}
+
 	// Handle character input
-	cmd := m.updateInputs(msg)
+	cmd := m.updateTrainingInputs(msg)
 	return m, cmd
 }
 
-func (m *Model) updateInputs(msg tea.Msg) tea.Cmd {
-	var cmds []tea.Cmd
-	for i := range m.inputs {
-		m.inputs[i], _ = m.inputs[i].Update(msg)
-		cmds = append(cmds, nil) // no-op to satisfy interface
+func (m *Model) updateTrainingInputs(msg tea.Msg) tea.Cmd {
+	cmds := make([]tea.Cmd, len(m.trainingForm.inputs))
+
+	// Only update the focused input
+	for i := range m.trainingForm.inputs {
+		if m.trainingForm.inputs[i].Focused() {
+			m.trainingForm.inputs[i], cmds[i] = m.trainingForm.inputs[i].Update(msg)
+		}
 	}
+
 	return tea.Batch(cmds...)
 }
 
-func (m *Model) nextInput() {
-	m.focusIndex = (m.focusIndex + 1) % (len(m.inputs) + 1) // +1 for the button
-}
-
-func (m *Model) prevInput() {
-	m.focusIndex--
-	if m.focusIndex < 0 {
-		m.focusIndex = len(m.inputs)
-	}
-}
-
-// View renders the TUI.
-func (m Model) View() string {
-	if m.quitting {
-		return ""
-	}
-
+func (m Model) viewTrainingForm() string {
 	var b strings.Builder
 
 	b.WriteString("Neural Network Training Configuration\n\n")
 
 	// Render CSV file list
 	b.WriteString("Available CSV Files:\n")
-	for i, file := range m.csvFiles {
-		b.WriteString(fmt.Sprintf("  %d: %s\n", i+1, file))
+	if len(m.trainingForm.csvFiles) == 0 {
+		b.WriteString("  (No CSV files found in current directory)\n")
+	} else {
+		for i, file := range m.trainingForm.csvFiles {
+			b.WriteString(fmt.Sprintf("  %d: %s\n", i+1, file))
+		}
 	}
 	b.WriteString("\n")
 
 	// Render form
-	fmt.Fprintf(&b, "Select CSV File (number): %s\n", m.inputs[0].View())
-	fmt.Fprintf(&b, "Hidden Layers (e.g., 20,20): %s\n", m.inputs[1].View())
-	fmt.Fprintf(&b, "Hidden Activations (e.g., relu,relu): %s\n", m.inputs[2].View())
-	fmt.Fprintf(&b, "Output Activation: %s\n", m.inputs[3].View())
-	fmt.Fprintf(&b, "Epochs: %s\n", m.inputs[4].View())
-	fmt.Fprintf(&b, "Learning Rate: %s\n", m.inputs[5].View())
-	fmt.Fprintf(&b, "Error Goal: %s\n", m.inputs[6].View())
+	fmt.Fprintf(&b, "Select CSV File (number): %s\n", m.trainingForm.inputs[0].View())
+	fmt.Fprintf(&b, "Hidden Layers (e.g., 20,20): %s\n", m.trainingForm.inputs[1].View())
+	fmt.Fprintf(&b, "Hidden Activations (e.g., relu,relu): %s\n", m.trainingForm.inputs[2].View())
+	fmt.Fprintf(&b, "Output Activation: %s\n", m.trainingForm.inputs[3].View())
+	fmt.Fprintf(&b, "Epochs: %s\n", m.trainingForm.inputs[4].View())
+	fmt.Fprintf(&b, "Learning Rate: %s\n", m.trainingForm.inputs[5].View())
+	fmt.Fprintf(&b, "Error Goal: %s\n", m.trainingForm.inputs[6].View())
 	b.WriteString("\n")
 
 	// Render button
 	button := "[ Start Training ]"
-	if m.focusIndex == len(m.inputs) {
+	if m.trainingForm.focusIndex == len(m.trainingForm.inputs) {
 		b.WriteString(focusedStyle.Render(button))
 	} else {
 		b.WriteString(button)
 	}
 
-	b.WriteString(helpStyle.Render("\n\n  ↑/↓, tab/shift+tab: navigate | enter: next | q: quit\n"))
+	b.WriteString(helpStyle.Render("\n\n  ↑/↓, tab/shift+tab: navigate | enter: select | q: back\n"))
 
 	return b.String()
 }
 
-// Run starts the TUI and returns the configured parameters.
-func (m Model) Run() (*TrainingParams, error) {
-	p, err := tea.NewProgram(m).Run()
-	if err != nil {
-		return nil, err
+// Start begins the TUI application.
+func Start() {
+	p := tea.NewProgram(New(), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Alas, there's been an error: %v", err)
+		os.Exit(1)
 	}
+}
 
-	finalModel := p.(Model)
-	if finalModel.quitting && finalModel.focusIndex != len(finalModel.inputs) {
-		return nil, fmt.Errorf("training cancelled")
+// Start begins the TUI application.
+func Start() {
+	p := tea.NewProgram(New(), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Alas, there's been an error: %v", err)
+		os.Exit(1)
 	}
+}
 
-	// Parse values from inputs
-	params := finalModel.params
-	
-	// CSV File
-	csvIndex, _ := strconv.Atoi(finalModel.inputs[0].Value())
-	if csvIndex < 1 || csvIndex > len(finalModel.csvFiles) {
-		return nil, fmt.Errorf("invalid CSV file selection")
+
+// Start begins the TUI application.
+func Start() {
+	p := tea.NewProgram(New(), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Alas, there's been an error: %v", err)
+		os.Exit(1)
 	}
-	params.CsvPath = finalModel.csvFiles[csvIndex-1]
-
-	// Hidden Layers
-	layersStr := finalModel.inputs[1].Value()
-	if layersStr == "" { layersStr = "20,20" }
-	for _, s := range strings.Split(layersStr, ",") {
-		i, err := strconv.Atoi(strings.TrimSpace(s))
-		if err != nil {
-			return nil, fmt.Errorf("invalid hidden layers: %w", err)
-		}
-		params.HiddenLayers = append(params.HiddenLayers, i)
-	}
-
-	// Hidden Activations
-	activationsStr := finalModel.inputs[2].Value()
-	if activationsStr == "" { activationsStr = "relu,relu" }
-	params.HiddenActivations = strings.Split(activationsStr, ",")
-
-	// Output Activation
-	params.OutputActivation = finalModel.inputs[3].Value()
-	if params.OutputActivation == "" { params.OutputActivation = "linear" }
-
-	// Epochs
-	epochsStr := finalModel.inputs[4].Value()
-	if epochsStr == "" { epochsStr = "1000" }
-	params.Epochs, _ = strconv.Atoi(epochsStr)
-
-	// Learning Rate
-	lrStr := finalModel.inputs[5].Value()
-	if lrStr == "" { lrStr = "0.001" }
-	params.LearningRate, _ = strconv.ParseFloat(lrStr, 64)
-
-	// Error Goal
-	egStr := finalModel.inputs[6].Value()
-	if egStr == "" { egStr = "0.001" }
-	params.ErrorGoal, _ = strconv.ParseFloat(egStr, 64)
-
-	return params, nil
 }
