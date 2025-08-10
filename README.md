@@ -84,3 +84,29 @@ open an issue or submit a pull request.
 ## License
 
 This project is licensed under the terms of the [LICENSE](LICENSE) file.
+
+## Docker
+
+This project can also be run inside a Docker container, which handles all the setup for you.
+
+### Prerequisites
+
+*   [Docker](https://www.docker.com/get-started) installed on your system.
+
+### Building the Image
+
+To build the Docker image, run the following command from the project root:
+
+```bash
+docker build -t go-neuralnetwork .
+```
+
+### Running the Container
+
+To run the application inside a Docker container, use the following command:
+
+```bash
+docker run -it --rm go-neuralnetwork
+```
+
+The `-it` flags are important for interacting with the TUI.
