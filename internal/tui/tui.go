@@ -16,16 +16,21 @@ import (
 
 // Messages
 type (
-	csvFilesLoadedMsg   struct{ files []string }
-	modelsLoadedMsg     struct{ models []string }
-	trainingStartedMsg  struct{}
-	epochCompletedMsg   struct {
+	csvFilesLoadedMsg                struct{ files []string }
+	modelsLoadedMsg                  struct{ models []string }
+	trainingStartedMsg               struct{}
+	epochCompletedMsg                struct {
 		epochNum int
 		loss     float64
 	}
-	trainingFinishedMsg struct{ modelData *data.ModelData }
-	predictionResultMsg struct{ result float64 }
-	errorMsg            struct{ err error }
+	trainingFinishedMsg              struct {
+		modelData *data.ModelData
+		testData  *data.Dataset
+	}
+	evaluationFinishedMsg             struct{ accuracy float64 }
+	predictionResultMsg              struct{ result float64 }
+	predictionResultClassificationMsg struct{ result string }
+	errorMsg                         struct{ err error }
 )
 
 func (m *Model) runTraining() tea.Cmd {
@@ -89,28 +94,29 @@ func (m *Model) runTraining() tea.Cmd {
 		}
 
 		// Load data
-		inputs, targets, inputSize, outputSize, inputMins, inputMaxs, targetMins, targetMaxs, err := data.LoadCSV(csvPath)
+		dataset, err := data.LoadCSV(csvPath, 0.8)
 		if err != nil {
 			return errorMsg{fmt.Errorf("failed to load CSV data: %w", err)}
 		}
 
 		// Initialize network
-		nn := neuralnetwork.InitNetwork(inputSize, hiddenLayers, outputSize, hiddenActivations, outputActivation)
+		nn := neuralnetwork.InitNetwork(dataset.InputSize, hiddenLayers, dataset.OutputSize, hiddenActivations, outputActivation)
 
 		// This channel will receive training progress
 		progressChan := make(chan interface{})
 
 		// Goroutine to run training and send messages
 		go func() {
-			nn.Train(inputs, targets, epochs, learningRate, errorGoal, progressChan)
+			nn.Train(dataset.TrainInputs, dataset.TrainTargets, epochs, learningRate, errorGoal, progressChan)
 			modelData := &data.ModelData{
 				NN:         nn,
-				InputMins:  inputMins,
-				InputMaxs:  inputMaxs,
-				TargetMins: targetMins,
-				TargetMaxs: targetMaxs,
+				InputMins:  dataset.InputMins,
+				InputMaxs:  dataset.InputMaxs,
+				TargetMins: dataset.TargetMins,
+				TargetMaxs: dataset.TargetMaxs,
+				ClassMap:   dataset.ClassMap,
 			}
-			m.program.Send(trainingFinishedMsg{modelData: modelData})
+			m.program.Send(trainingFinishedMsg{modelData: modelData, testData: dataset})
 		}()
 
 		// Goroutine to listen for progress and update the TUI
@@ -149,6 +155,7 @@ const (
 	mainMenu sessionState = iota
 	trainingForm
 	trainingInProgress
+	evaluation
 	predictionForm
 	predictionResult
 	saveModelForm
@@ -158,11 +165,11 @@ const (
 // Styles
 var (
 	titleStyle = lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("#FAFAFA")).
-		Background(lipgloss.Color("#7D56F4")).
-		PaddingLeft(1).
-		PaddingRight(1)
+			Bold(true).
+			Foreground(lipgloss.Color("#FAFAFA")).
+			Background(lipgloss.Color("#7D56F4")).
+			PaddingLeft(1).
+			PaddingRight(1)
 
 	menuItemStyle         = lipgloss.NewStyle().PaddingLeft(2)
 	selectedMenuItemStyle = lipgloss.NewStyle().PaddingLeft(2).Foreground(lipgloss.Color("205"))
@@ -173,22 +180,24 @@ var (
 
 // Model represents the state of the entire application.
 type Model struct {
-	state           sessionState
-	menuCursor      int
-	menuChoices     []string
-	trainingForm    trainingFormModel
-	predictionForm  predictionFormModel
-	saveModelInput  textinput.Model
-	modelData       *data.ModelData
-	program         *tea.Program
-	lastError       error
-	quitting        bool
-	terminalWidth   int
-	terminalHeight  int
-	lastLoss        float64
-	currentEpoch    int
-	totalEpochs     int
-	predictionValue float64
+	state              sessionState
+	menuCursor         int
+	menuChoices        []string
+	trainingForm       trainingFormModel
+	predictionForm     predictionFormModel
+	saveModelInput     textinput.Model
+	modelData          *data.ModelData
+	program            *tea.Program
+	lastError          error
+	quitting           bool
+	terminalWidth      int
+	terminalHeight     int
+	lastLoss           float64
+	currentEpoch       int
+	totalEpochs        int
+	predictionValue    float64
+	predictionClass    string
+	accuracy           float64
 }
 
 // trainingFormModel holds the state for the training configuration form.
@@ -321,12 +330,54 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case trainingFinishedMsg:
 		m.modelData = msg.modelData
+		m.state = evaluation
+		return m, func() tea.Msg {
+			correct := 0
+			for i, input := range msg.testData.TestInputs {
+				_, prediction := m.modelData.NN.FeedForward(input)
+				if msg.testData.ClassMap != nil {
+					max := -1.0
+					maxIndex := -1
+					for i, val := range prediction {
+						if val > max {
+							max = val
+							maxIndex = i
+						}
+					}
+
+					actualIndex := -1
+					for i, val := range msg.testData.TestTargets[i] {
+						if val == 1.0 {
+							actualIndex = i
+							break
+						}
+					}
+
+					if maxIndex == actualIndex {
+						correct++
+					}
+				} else {
+					// This is a regression problem, so we can't calculate accuracy.
+					// We could calculate loss here instead.
+				}
+			}
+			accuracy := float64(correct) / float64(len(msg.testData.TestInputs))
+			return evaluationFinishedMsg{accuracy: accuracy}
+		}
+
+	case evaluationFinishedMsg:
+		m.accuracy = msg.accuracy
 		m.state = saveModelForm
 		return m, nil
 
 	case predictionResultMsg:
 		m.state = predictionResult
 		m.predictionValue = msg.result
+		return m, nil
+
+	case predictionResultClassificationMsg:
+		m.state = predictionResult
+		m.predictionClass = msg.result
 		return m, nil
 
 	case tea.KeyMsg:
@@ -338,6 +389,11 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case trainingInProgress:
 			if msg.String() == "q" {
 				m.state = mainMenu
+			}
+			return m, nil
+		case evaluation:
+			if msg.String() == "enter" || msg.String() == "q" {
+				m.state = saveModelForm
 			}
 			return m, nil
 		case predictionForm:
@@ -435,6 +491,8 @@ func (m *Model) View() string {
 		s = m.viewTrainingForm()
 	case trainingInProgress:
 		s = m.viewTrainingInProgress()
+	case evaluation:
+		s = m.viewEvaluation()
 	case predictionForm:
 		s = m.viewPredictionForm()
 	case predictionResult:
@@ -448,6 +506,10 @@ func (m *Model) View() string {
 	}
 
 	return s
+}
+
+func (m *Model) viewEvaluation() string {
+	return fmt.Sprintf("Evaluation complete!\n\nAccuracy: %.2f%%\n\n(Press enter to continue)", m.accuracy*100)
 }
 
 func (m *Model) updateTrainingForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -560,7 +622,6 @@ func (m *Model) viewTrainingForm() string {
 
 	return b.String()
 }
-
 
 func (m *Model) viewTrainingInProgress() string {
 	return fmt.Sprintf("Training in progress...\n\nEpoch: %d/%d\nLoss: %f\n\n(Press 'q' to stop)", m.currentEpoch, m.totalEpochs, m.lastLoss)
@@ -685,13 +746,35 @@ func (m *Model) runPrediction() tea.Cmd {
 		}
 
 		_, predictionOutput := modelData.NN.FeedForward(predictionInput)
-		finalPrediction := predictionOutput[0]*(modelData.TargetMaxs[0]-modelData.TargetMins[0]) + modelData.TargetMins[0]
 
-		return predictionResultMsg{result: finalPrediction}
+		if modelData.ClassMap != nil {
+			// Classification
+			max := -1.0
+			maxIndex := -1
+			for i, val := range predictionOutput {
+				if val > max {
+					max = val
+					maxIndex = i
+				}
+			}
+			for class, index := range modelData.ClassMap {
+				if index == maxIndex {
+					return predictionResultClassificationMsg{result: class}
+				}
+			}
+			return errorMsg{fmt.Errorf("could not determine class from prediction")}
+		} else {
+			// Regression
+			finalPrediction := predictionOutput[0]*(modelData.TargetMaxs[0]-modelData.TargetMins[0]) + modelData.TargetMins[0]
+			return predictionResultMsg{result: finalPrediction}
+		}
 	}
 }
 
 func (m *Model) viewPredictionResult() string {
+	if m.predictionClass != "" {
+		return fmt.Sprintf("Prediction Result: %s\n\n(Press enter to return to main menu)", m.predictionClass)
+	}
 	return fmt.Sprintf("Prediction Result: %f\n\n(Press enter to return to main menu)", m.predictionValue)
 }
 

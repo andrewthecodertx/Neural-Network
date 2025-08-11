@@ -11,8 +11,9 @@ type ModelData struct {
 	NN         *neuralnetwork.NeuralNetwork `json:"neuralNetwork"`
 	InputMins  []float64                    `json:"inputMins"`
 	InputMaxs  []float64                    `json:"inputMaxs"`
-	TargetMins []float64                    `json:"targetMins"`
-	TargetMaxs []float64                    `json:"targetMaxs"`
+	TargetMins []float64                    `json:"targetMins,omitempty"`
+	TargetMaxs []float64                    `json:"targetMaxs,omitempty"`
+	ClassMap   map[string]int               `json:"classMap,omitempty"`
 }
 
 func (md *ModelData) SaveModel(filePath string) error {

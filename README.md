@@ -12,7 +12,7 @@ models and loading pre-trained models for prediction.
 configurable number of hidden layers and neurons per layer.
 * **Multiple Activation Functions:** Supports `ReLU`, `Sigmoid`, `Tanh`,
 and `Linear` activation functions for each hidden layer and the output layer.
-* **Training:** Train the neural network using your own CSV data.
+* **Training:** Train the neural network using your own CSV data. The data is automatically split into training and testing sets.
 * **Model Persistence:** Save and load trained models to/from `model.json` files.
 * **Prediction:** Use a loaded model to make predictions on new input data.
 * **He Initialization:** Weights are initialized using He initialization.
@@ -55,7 +55,8 @@ Upon launching the application, you will be greeted with the main menu. You can 
     *   **Error Goal:** The target error at which training will stop.
 4.  Navigate to the **"[ Start Training ]"** button and press `Enter`.
 5.  A live progress view will show the current epoch and loss.
-6.  Once training is complete, you will be prompted to enter a name to save the model. The saved model will be placed in the `saved_models/` directory.
+6.  After training, the model will be evaluated on the test set, and the accuracy will be displayed.
+7.  Once training is complete, you will be prompted to enter a name to save the model. The saved model will be placed in the `saved_models/` directory.
 
 ### Load Model & Predict
 
@@ -67,9 +68,9 @@ Upon launching the application, you will be greeted with the main menu. You can 
 4.  Navigate to the **"[ Predict ]"** button and press `Enter`.
 5.  The calculated prediction will be displayed on the screen.
 
-## Dataset
+## Datasets
 
-The `redwinequality.csv` dataset is included as a sample. This dataset is from the
+The `redwinequality.csv` and `iris.csv` datasets are included as samples. These datasets are from the
 UCI Machine Learning Repository.
 
 Citation:
