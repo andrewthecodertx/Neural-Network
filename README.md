@@ -80,12 +80,12 @@ In Decision Support Systems, Elsevier, 47(4):547-553, 2009.
 
 ## Future Enhancements
 
-* **Dockerization:** Provide a Docker image for easier deployment and use.
 * **Command-Line Arguments:** Allow all parameters to be passed via
 command-line arguments instead of interactive prompts.
 * **Additional Optimizers:** Implement other optimization algorithms like
 Adam or RMSprop.
 * **Regularization:** Add support for L1/L2 regularization to prevent overfitting.
+* **Testing:** Add a comprehensive test suite.
 
 ## Contributing
 
