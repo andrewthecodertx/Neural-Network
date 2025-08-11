@@ -1,6 +1,10 @@
 package neuralnetwork
 
-import "math"
+import (
+	"fmt"
+	"math"
+	"sort"
+)
 
 // Activation is an interface for activation functions.
 type Activation interface {
@@ -37,7 +41,9 @@ func (s *Sigmoid) Activate(x float64) float64 {
 
 // Derivative calculates the derivative of the sigmoid function.
 func (s *Sigmoid) Derivative(x float64) float64 {
-	return s.Activate(x) * (1 - s.Activate(x))
+	// Note: This is the derivative with respect to the output of the activation, not the input.
+	// It assumes the input 'x' is already s.Activate(input).
+	return x * (1 - x)
 }
 
 // Tanh is the hyperbolic tangent activation function.
@@ -50,7 +56,9 @@ func (t *Tanh) Activate(x float64) float64 {
 
 // Derivative calculates the derivative of the tanh function.
 func (t *Tanh) Derivative(x float64) float64 {
-	return 1 - math.Pow(t.Activate(x), 2)
+	// Note: This is the derivative with respect to the output of the activation, not the input.
+	// It assumes the input 'x' is already t.Activate(input).
+	return 1 - x*x
 }
 
 // Linear is the linear activation function.
@@ -64,4 +72,31 @@ func (l *Linear) Activate(x float64) float64 {
 // Derivative calculates the derivative of the linear function.
 func (l *Linear) Derivative(x float64) float64 {
 	return 1
+}
+
+// availableActivations holds all available activation functions.
+var availableActivations = map[string]Activation{
+	"relu":    &ReLU{},
+	"sigmoid": &Sigmoid{},
+	"tanh":    &Tanh{},
+	"linear":  &Linear{},
+}
+
+// GetActivation returns an activation function by name.
+func GetActivation(name string) (Activation, error) {
+	activation, ok := availableActivations[name]
+	if !ok {
+		return nil, fmt.Errorf("unknown activation function: %s", name)
+	}
+	return activation, nil
+}
+
+// GetAvailableActivations returns a sorted list of available activation function names.
+func GetAvailableActivations() []string {
+	keys := make([]string, 0, len(availableActivations))
+	for k := range availableActivations {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

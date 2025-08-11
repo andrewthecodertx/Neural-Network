@@ -1,7 +1,6 @@
 package neuralnetwork
 
 import (
-	"fmt"
 	"math"
 	"math/rand"
 )
@@ -72,33 +71,19 @@ func InitNetwork(inputs int, hiddenLayers []int, outputs int, hiddenActivations 
 // SetActivationFunctions sets the activation functions for each layer.
 func (nn *NeuralNetwork) SetActivationFunctions() error {
 	nn.hiddenActivationFuncs = make([]Activation, len(nn.HiddenActivations))
-	for i, activation := range nn.HiddenActivations {
-		switch activation {
-		case "relu":
-			nn.hiddenActivationFuncs[i] = &ReLU{}
-		case "sigmoid":
-			nn.hiddenActivationFuncs[i] = &Sigmoid{}
-		case "tanh":
-			nn.hiddenActivationFuncs[i] = &Tanh{}
-		case "linear":
-			nn.hiddenActivationFuncs[i] = &Linear{}
-		default:
-			return fmt.Errorf("unknown activation function: %s", activation)
+	for i, activationName := range nn.HiddenActivations {
+		activation, err := GetActivation(activationName)
+		if err != nil {
+			return err
 		}
+		nn.hiddenActivationFuncs[i] = activation
 	}
 
-	switch nn.OutputActivation {
-	case "relu":
-		nn.outputActivationFunc = &ReLU{}
-	case "sigmoid":
-		nn.outputActivationFunc = &Sigmoid{}
-	case "tanh":
-		nn.outputActivationFunc = &Tanh{}
-	case "linear":
-		nn.outputActivationFunc = &Linear{}
-	default:
-		return fmt.Errorf("unknown activation function: %s", nn.OutputActivation)
+	activation, err := GetActivation(nn.OutputActivation)
+	if err != nil {
+		return err
 	}
+	nn.outputActivationFunc = activation
 	return nil
 }
 
@@ -161,8 +146,9 @@ func (nn *NeuralNetwork) Backpropagate(inputs []float64, targets []float64, hidd
 			hiddenErrors[i][j] = sum
 			hiddenDeltas[i][j] = hiddenErrors[i][j] * nn.hiddenActivationFuncs[i].Derivative(hiddenOutputs[i][j])
 		}
-		nextLayerDeltas = hiddenDeltas[i]
+
 		if i > 0 {
+			nextLayerDeltas = hiddenDeltas[i]
 			nextLayerWeights = nn.HiddenWeights[i]
 		}
 	}

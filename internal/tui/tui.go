@@ -533,8 +533,16 @@ func (m *Model) viewTrainingForm() string {
 	// Render form
 	fmt.Fprintf(&b, "Select CSV File (number): %s\n", m.trainingForm.inputs[0].View())
 	fmt.Fprintf(&b, "Hidden Layers (e.g., 20,20): %s\n", m.trainingForm.inputs[1].View())
+
+	// Activation function hints
+	availableActivations := neuralnetwork.GetAvailableActivations()
+	b.WriteString(fmt.Sprintf("\nAvailable activation functions: %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render(strings.Join(availableActivations, ", "))))
+	b.WriteString(fmt.Sprintf("%s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("Hint: 'relu' or 'tanh' are common choices for hidden layers.")))
 	fmt.Fprintf(&b, "Hidden Activations (e.g., relu,relu): %s\n", m.trainingForm.inputs[2].View())
-	fmt.Fprintf(&b, "Output Activation: %s\n", m.trainingForm.inputs[3].View())
+
+	b.WriteString(fmt.Sprintf("\n%s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render("Hint: 'linear' for regression, 'sigmoid' for classification.")))
+	fmt.Fprintf(&b, "Output Activation: %s\n\n", m.trainingForm.inputs[3].View())
+
 	fmt.Fprintf(&b, "Epochs: %s\n", m.trainingForm.inputs[4].View())
 	fmt.Fprintf(&b, "Learning Rate: %s\n", m.trainingForm.inputs[5].View())
 	fmt.Fprintf(&b, "Error Goal: %s\n", m.trainingForm.inputs[6].View())
@@ -552,6 +560,7 @@ func (m *Model) viewTrainingForm() string {
 
 	return b.String()
 }
+
 
 func (m *Model) viewTrainingInProgress() string {
 	return fmt.Sprintf("Training in progress...\n\nEpoch: %d/%d\nLoss: %f\n\n(Press 'q' to stop)", m.currentEpoch, m.totalEpochs, m.lastLoss)
@@ -657,7 +666,9 @@ func (m *Model) runPrediction() tea.Cmd {
 		if err != nil {
 			return errorMsg{fmt.Errorf("failed to load model: %w", err)}
 		}
-		modelData.NN.SetActivationFunctions()
+		if err := modelData.NN.SetActivationFunctions(); err != nil {
+			return errorMsg{fmt.Errorf("failed to set activation functions: %w", err)}
+		}
 
 		inputStrs := strings.Split(strings.TrimSpace(m.predictionForm.inputs[1].Value()), ",")
 		if len(inputStrs) != modelData.NN.NumInputs {
