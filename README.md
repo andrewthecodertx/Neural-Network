@@ -67,6 +67,16 @@ Upon launching the application, you will be greeted with the main menu. You can 
 4.  Navigate to the **"[ Predict ]"** button and press `Enter`.
 5.  The calculated prediction will be displayed on the screen.
 
+## Dataset
+
+The `redwinequality.csv` dataset is included as a sample. This dataset is from the
+UCI Machine Learning Repository.
+
+Citation:
+P. Cortez, A. Cerdeira, F. Almeida, T. Matos and J. Reis.
+Modeling wine preferences by data mining from physicochemical properties.
+In Decision Support Systems, Elsevier, 47(4):547-553, 2009.
+
 ## Future Enhancements
 
 * **Dockerization:** Provide a Docker image for easier deployment and use.
