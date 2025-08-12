@@ -117,3 +117,75 @@ abc,1.0`
 		t.Errorf("Test Case 4: Expected an error for non-numeric data, got nil")
 	}
 }
+
+func TestLoadCSVForClassification(t *testing.T) {
+	// Test case 1: Valid classification CSV
+	csvContent1 := `sepal_length,sepal_width,petal_length,petal_width,species
+5.1,3.5,1.4,0.2,setosa
+7.0,3.2,4.7,1.4,versicolor`
+	filePath1, err := tempfile.CreateTempFileWithContent("classification-*.csv", csvContent1)
+	if err != nil {
+		t.Fatalf("Failed to create temp CSV: %v", err)
+	}
+	defer os.Remove(filePath1)
+
+	dataset, err := data.LoadCSVForClassification(filePath1, 1.0)
+	if err != nil {
+		t.Fatalf("Test Case 1: Unexpected error: %v", err)
+	}
+
+	// The LoadCSVForClassification function shuffles the data, so we need to sort it to have a deterministic test.
+	type labeledData struct {
+		input  []float64
+		target []float64
+	}
+
+	var combined []labeledData
+	for i := range dataset.TrainInputs {
+		combined = append(combined, labeledData{input: dataset.TrainInputs[i], target: dataset.TrainTargets[i]})
+	}
+
+	// Sort based on the first element of the input slice.
+	sort.Slice(combined, func(i, j int) bool {
+		if len(combined[i].input) == 0 || len(combined[j].input) == 0 {
+			return false
+		}
+		return combined[i].input[0] < combined[j].input[0]
+	})
+
+	sortedInputs := make([][]float64, len(combined))
+	sortedTargets := make([][]float64, len(combined))
+	for i, d := range combined {
+		sortedInputs[i] = d.input
+		sortedTargets[i] = d.target
+	}
+
+	// Note: The expected inputs are normalized.
+	expectedInputs1 := [][]float64{{0.0, 1.0, 0.0, 0.0}, {1.0, 0.0, 1.0, 1.0}}
+	expectedTargets1 := [][]float64{{1.0, 0.0}, {0.0, 1.0}}
+	expectedClassMap1 := map[string]int{"setosa": 0, "versicolor": 1}
+
+	if !reflect.DeepEqual(sortedInputs, expectedInputs1) {
+		t.Errorf("Test Case 1: Inputs mismatch. Got %v, Expected %v", sortedInputs, expectedInputs1)
+	}
+	if !reflect.DeepEqual(sortedTargets, expectedTargets1) {
+		t.Errorf("Test Case 1: Targets mismatch. Got %v, Expected %v", sortedTargets, expectedTargets1)
+	}
+	if !reflect.DeepEqual(dataset.ClassMap, expectedClassMap1) {
+		t.Errorf("Test Case 1: ClassMap mismatch. Got %v, Expected %v", dataset.ClassMap, expectedClassMap1)
+	}
+
+	// Test case 2: CSV with non-numeric input data
+	csvContent2 := `header1,header2
+abc,classA`
+	filePath2, err := tempfile.CreateTempFileWithContent("classification-*.csv", csvContent2)
+	if err != nil {
+		t.Fatalf("Failed to create temp CSV: %v", err)
+	}
+	defer os.Remove(filePath2)
+
+	_, err = data.LoadCSVForClassification(filePath2, 1.0)
+	if err == nil {
+		t.Errorf("Test Case 2: Expected an error for non-numeric data, got nil")
+	}
+}
