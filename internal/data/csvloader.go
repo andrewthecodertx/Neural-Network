@@ -23,7 +23,7 @@ type Dataset struct {
 	ClassMap     map[string]int
 }
 
-func shuffle(inputs, targets [][]float64) {
+func Shuffle(inputs, targets [][]float64) {
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	r.Shuffle(len(inputs), func(i, j int) {
 		inputs[i], inputs[j] = inputs[j], inputs[i]
@@ -31,7 +31,7 @@ func shuffle(inputs, targets [][]float64) {
 	})
 }
 
-func splitData(inputs, targets [][]float64, splitRatio float64) (trainInputs, trainTargets, testInputs, testTargets [][]float64) {
+func SplitData(inputs, targets [][]float64, splitRatio float64) (trainInputs, trainTargets, testInputs, testTargets [][]float64) {
 	splitIndex := int(float64(len(inputs)) * splitRatio)
 	trainInputs = inputs[:splitIndex]
 	trainTargets = targets[:splitIndex]
@@ -130,8 +130,8 @@ func LoadCSV(filePath string, splitRatio float64) (*Dataset, error) {
 		targets = append(targets, outputRow)
 	}
 
-	shuffle(inputs, targets)
-	trainInputs, trainTargets, testInputs, testTargets := splitData(inputs, targets, splitRatio)
+	Shuffle(inputs, targets)
+	trainInputs, trainTargets, testInputs, testTargets := SplitData(inputs, targets, splitRatio)
 
 	return &Dataset{
 		TrainInputs:  trainInputs,
@@ -222,8 +222,8 @@ func LoadCSVForClassification(filePath string, splitRatio float64) (*Dataset, er
 		targets = append(targets, targetRow)
 	}
 
-	shuffle(inputs, targets)
-	trainInputs, trainTargets, testInputs, testTargets := splitData(inputs, targets, splitRatio)
+	Shuffle(inputs, targets)
+	trainInputs, trainTargets, testInputs, testTargets := SplitData(inputs, targets, splitRatio)
 
 	return &Dataset{
 		TrainInputs:  trainInputs,

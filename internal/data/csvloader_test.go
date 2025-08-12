@@ -189,3 +189,94 @@ abc,classA`
 		t.Errorf("Test Case 2: Expected an error for non-numeric data, got nil")
 	}
 }
+
+func TestSplitData(t *testing.T) {
+	inputs := [][]float64{{1}, {2}, {3}, {4}, {5}}
+	targets := [][]float64{{10}, {20}, {30}, {40}, {50}}
+
+	// Test case 1: 80/20 split
+	trainInputs, trainTargets, testInputs, testTargets := data.SplitData(inputs, targets, 0.8)
+
+	if len(trainInputs) != 4 || len(trainTargets) != 4 {
+		t.Errorf("Expected 4 training items, got %d inputs and %d targets", len(trainInputs), len(trainTargets))
+	}
+	if len(testInputs) != 1 || len(testTargets) != 1 {
+		t.Errorf("Expected 1 test item, got %d inputs and %d targets", len(testInputs), len(testTargets))
+	}
+	if !reflect.DeepEqual(trainInputs[3], []float64{4}) {
+		t.Errorf("Last training input is incorrect")
+	}
+	if !reflect.DeepEqual(testInputs[0], []float64{5}) {
+		t.Errorf("First test input is incorrect")
+	}
+
+	// Test case 2: 100% split (all training)
+	trainInputs, _, testInputs, _ = data.SplitData(inputs, targets, 1.0)
+	if len(trainInputs) != 5 {
+		t.Errorf("Expected 5 training inputs, got %d", len(trainInputs))
+	}
+	if len(testInputs) != 0 {
+		t.Errorf("Expected 0 test inputs, got %d", len(testInputs))
+	}
+
+	// Test case 3: 0% split (all testing)
+	trainInputs, _, testInputs, _ = data.SplitData(inputs, targets, 0.0)
+	if len(trainInputs) != 0 {
+		t.Errorf("Expected 0 training inputs, got %d", len(trainInputs))
+	}
+	if len(testInputs) != 5 {
+		t.Errorf("Expected 5 test inputs, got %d", len(testInputs))
+	}
+
+	// Test case 4: Empty input
+	trainInputs, trainTargets, testInputs, testTargets = data.SplitData([][]float64{}, [][]float64{}, 0.5)
+	if len(trainInputs) != 0 || len(trainTargets) != 0 || len(testInputs) != 0 || len(testTargets) != 0 {
+		t.Errorf("Expected empty slices for empty input, got non-empty slices")
+	}
+}
+
+func TestShuffle(t *testing.T) {
+	inputs := [][]float64{{1}, {2}, {3}, {4}, {5}}
+	targets := [][]float64{{10}, {20}, {30}, {40}, {50}}
+
+	// Create a map to check if input-target pairs are preserved
+	originalPairs := make(map[float64]float64)
+	for i := range inputs {
+		originalPairs[inputs[i][0]] = targets[i][0]
+	}
+
+	// Create copies to shuffle
+	shuffledInputs := make([][]float64, len(inputs))
+	shuffledTargets := make([][]float64, len(targets))
+	for i := range inputs {
+		shuffledInputs[i] = make([]float64, len(inputs[i]))
+		copy(shuffledInputs[i], inputs[i])
+	}
+	for i := range targets {
+		shuffledTargets[i] = make([]float64, len(targets[i]))
+		copy(shuffledTargets[i], targets[i])
+	}
+
+	data.Shuffle(shuffledInputs, shuffledTargets)
+
+	if len(shuffledInputs) != len(inputs) {
+		t.Errorf("Shuffle changed the length of inputs slice. Got %d, expected %d", len(shuffledInputs), len(inputs))
+	}
+	if len(shuffledTargets) != len(targets) {
+		t.Errorf("Shuffle changed the length of targets slice. Got %d, expected %d", len(shuffledTargets), len(targets))
+	}
+
+	// Check that pairs are preserved
+	for i := range shuffledInputs {
+		inputVal := shuffledInputs[i][0]
+		targetVal := shuffledTargets[i][0]
+		if expectedTarget, ok := originalPairs[inputVal]; !ok || expectedTarget != targetVal {
+			t.Errorf("Shuffle broke input-target pair. For input %v, expected target %v, but got %v", inputVal, originalPairs[inputVal], targetVal)
+		}
+	}
+
+	// Check that the data is actually shuffled (this test might fail by chance, but it's unlikely with a small set)
+	if reflect.DeepEqual(inputs, shuffledInputs) {
+		t.Log("Warning: Data was not shuffled. This might happen by chance, re-run test.")
+	}
+}
