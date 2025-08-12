@@ -183,7 +183,7 @@ func (nn *NeuralNetwork) Backpropagate(inputs []float64, targets []float64, hidd
 func (nn *NeuralNetwork) Train(inputs, targets [][]float64, epochs int, learningRate float64, errorGoal float64, progressChan chan<- interface{}) {
 	defer close(progressChan) // Ensure the channel is closed when training is done
 
-	for epoch := 0; epoch < epochs; epoch++ {
+	for range make([]struct{}, epochs) {
 		totalError := 0.0
 		for i := range inputs {
 			hiddenOutputs, finalOutputs := nn.FeedForward(inputs[i])
