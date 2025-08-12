@@ -104,7 +104,7 @@ func (m *Model) runTraining() tea.Cmd {
 		nn := neuralnetwork.InitNetwork(dataset.InputSize, hiddenLayers, dataset.OutputSize, hiddenActivations, outputActivation)
 
 		// This channel will receive training progress
-		progressChan := make(chan interface{})
+		progressChan := make(chan any)
 
 		// Goroutine to run training and send messages
 		go func() {
@@ -819,7 +819,6 @@ func (m *Model) viewError() string {
 	)
 }
 
-// Start begins the TUI application.
 func Start() {
 	m := New()
 	p := tea.NewProgram(m, tea.WithAltScreen())

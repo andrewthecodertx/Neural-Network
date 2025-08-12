@@ -180,7 +180,7 @@ func (nn *NeuralNetwork) Backpropagate(inputs []float64, targets []float64, hidd
 }
 
 // Train trains the neural network using the provided training data, number of epochs, learning rate, and error goal.
-func (nn *NeuralNetwork) Train(inputs, targets [][]float64, epochs int, learningRate float64, errorGoal float64, progressChan chan<- interface{}) {
+func (nn *NeuralNetwork) Train(inputs, targets [][]float64, epochs int, learningRate float64, errorGoal float64, progressChan chan<- any) {
 	defer close(progressChan) // Ensure the channel is closed when training is done
 
 	for range make([]struct{}, epochs) {
