@@ -84,7 +84,7 @@ func LoadCSV(filePath string, splitRatio float64) (*Dataset, error) {
 	}
 
 	for _, record := range records {
-		for i := 0; i < inputSize+outputSize; i++ {
+		for i := range mins {
 			val, err := strconv.ParseFloat(record[i], 64)
 			if err != nil {
 				return nil, err
@@ -108,7 +108,7 @@ func LoadCSV(filePath string, splitRatio float64) (*Dataset, error) {
 		inputRow := make([]float64, inputSize)
 		outputRow := make([]float64, outputSize)
 
-		for i := 0; i < inputSize; i++ {
+		for i := range inputRow {
 			val, _ := strconv.ParseFloat(record[i], 64)
 			if maxs[i]-mins[i] == 0 {
 				inputRow[i] = 0
@@ -117,7 +117,7 @@ func LoadCSV(filePath string, splitRatio float64) (*Dataset, error) {
 			}
 		}
 
-		for i := 0; i < outputSize; i++ {
+		for i := range outputRow {
 			val, _ := strconv.ParseFloat(record[inputSize+i], 64)
 			if maxs[inputSize+i]-mins[inputSize+i] == 0 {
 				outputRow[i] = 0
@@ -188,7 +188,7 @@ func LoadCSVForClassification(filePath string, splitRatio float64) (*Dataset, er
 	}
 
 	for _, record := range records {
-		for i := 0; i < inputSize; i++ {
+		for i := range inputMins {
 			val, err := strconv.ParseFloat(record[i], 64)
 			if err != nil {
 				return nil, fmt.Errorf("error parsing float in record %v: %w", record, err)
@@ -206,7 +206,7 @@ func LoadCSVForClassification(filePath string, splitRatio float64) (*Dataset, er
 	// Second pass: build the inputs and targets slices
 	for _, record := range records {
 		inputRow := make([]float64, inputSize)
-		for i := 0; i < inputSize; i++ {
+		for i := range inputRow {
 			val, _ := strconv.ParseFloat(record[i], 64)
 			if inputMaxs[i]-inputMins[i] == 0 {
 				inputRow[i] = 0

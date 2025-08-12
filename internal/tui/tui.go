@@ -7,11 +7,12 @@ import (
 	"strconv"
 	"strings"
 
+	"go-neuralnetwork/internal/data"
+	"go-neuralnetwork/internal/neuralnetwork"
+
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"go-neuralnetwork/internal/data"
-	"go-neuralnetwork/internal/neuralnetwork"
 )
 
 // Messages
@@ -541,7 +542,7 @@ func (m *Model) updateTrainingForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		cmds := make([]tea.Cmd, len(m.trainingForm.inputs))
-		for i := 0; i <= len(m.trainingForm.inputs)-1; i++ {
+		for i := range m.trainingForm.inputs {
 			if i == m.trainingForm.focusIndex {
 				// Set focused state
 				cmds[i] = m.trainingForm.inputs[i].Focus()
@@ -653,7 +654,7 @@ func (m *Model) updatePredictionForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 		cmds := make([]tea.Cmd, len(m.predictionForm.inputs))
-		for i := 0; i <= len(m.predictionForm.inputs)-1; i++ {
+		for i := range m.predictionForm.inputs {
 			if i == m.predictionForm.focusIndex {
 				cmds[i] = m.predictionForm.inputs[i].Focus()
 				m.predictionForm.inputs[i].PromptStyle = focusedStyle
