@@ -168,6 +168,75 @@ func TestBackpropagate(t *testing.T) {
 	}
 }
 
+func TestTrain(t *testing.T) {
+	// XOR problem: a classic non-linear problem to test if the network can learn
+	inputs := [][]float64{
+		{0, 0},
+		{0, 1},
+		{1, 0},
+		{1, 1},
+	}
+	targets := [][]float64{
+		{0},
+		{1},
+		{1},
+		{0},
+	}
+
+	// Network architecture capable of solving XOR
+	nn := neuralnetwork.InitNetwork(2, []int{3}, 1, []string{"tanh"}, "tanh")
+
+	// Helper to calculate Mean Squared Error
+	calculateMSE := func() float64 {
+		totalError := 0.0
+		for i, input := range inputs {
+			_, finalOutputs := nn.FeedForward(input)
+			for j, target := range targets[i] {
+				totalError += 0.5 * (target - finalOutputs[j]) * (target - finalOutputs[j])
+			}
+		}
+		return totalError / float64(len(inputs))
+	}
+
+	initialError := calculateMSE()
+
+	// Train the network
+	epochs := 5000
+	learningRate := 0.1
+	errorGoal := 0.01
+	progressChan := make(chan any)
+
+	go func() {
+		// Consume progress updates to prevent blocking
+		for range progressChan {
+		}
+	}()
+
+	nn.Train(inputs, targets, epochs, learningRate, errorGoal, progressChan)
+
+	finalError := calculateMSE()
+
+	if finalError >= initialError {
+		t.Errorf("Training did not reduce error. Initial: %f, Final: %f", initialError, finalError)
+	}
+
+	// This test can be flaky due to random weight initialization.
+	// A high error isn't a definitive failure but an indication of non-convergence in this run.
+	if finalError > errorGoal {
+		t.Logf("Network did not converge to the error goal. This can happen, but check if it's frequent. Final Error: %f, Goal: %f", finalError, errorGoal)
+	}
+
+	// Check if it learned the pattern
+	for i, input := range inputs {
+		_, finalOutputs := nn.FeedForward(input)
+		roundedOutput := math.Round(finalOutputs[0])
+		expectedOutput := targets[i][0]
+		if roundedOutput != expectedOutput {
+			t.Errorf("XOR test failed for input %v. Expected output to be close to %v (rounded: %v), but got %v", input, expectedOutput, roundedOutput, finalOutputs[0])
+		}
+	}
+}
+
 // Helper functions for deep copying slices
 func deepCopy3D(slice [][][]float64) [][][]float64 {
 	newSlice := make([][][]float64, len(slice))
