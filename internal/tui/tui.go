@@ -42,7 +42,6 @@ func (m *Model) runTraining() tea.Cmd {
 			return errorMsg{fmt.Errorf("invalid CSV file selection")}
 		}
 		csvPath := m.trainingForm.csvFiles[csvIndex-1]
-
 		layersStr := m.trainingForm.inputs[1].Value()
 		if layersStr == "" {
 			layersStr = "20,20"
@@ -55,18 +54,15 @@ func (m *Model) runTraining() tea.Cmd {
 			}
 			hiddenLayers = append(hiddenLayers, i)
 		}
-
 		activationsStr := m.trainingForm.inputs[2].Value()
 		if activationsStr == "" {
 			activationsStr = "relu,relu"
 		}
 		hiddenActivations := strings.Split(activationsStr, ",")
-
 		outputActivation := m.trainingForm.inputs[3].Value()
 		if outputActivation == "" {
 			outputActivation = "linear"
 		}
-
 		epochsStr := m.trainingForm.inputs[4].Value()
 		if epochsStr == "" {
 			epochsStr = "1000"
@@ -75,7 +71,6 @@ func (m *Model) runTraining() tea.Cmd {
 		if err != nil {
 			return errorMsg{fmt.Errorf("invalid epochs value: %w", err)}
 		}
-
 		lrStr := m.trainingForm.inputs[5].Value()
 		if lrStr == "" {
 			lrStr = "0.001"
@@ -84,7 +79,6 @@ func (m *Model) runTraining() tea.Cmd {
 		if err != nil {
 			return errorMsg{fmt.Errorf("invalid learning rate: %w", err)}
 		}
-
 		egStr := m.trainingForm.inputs[6].Value()
 		if egStr == "" {
 			egStr = "0.001"
@@ -265,7 +259,7 @@ func newPredictionForm() predictionFormModel {
 			t.Placeholder = "1"
 			t.Focus()
 		case 1:
-			t.Placeholder = "e.g., 7.4,0.7,0,1.9,0.076,11,34,0.9978,3.51,0.56,9.4"
+			t.Placeholder = "7.4,0.7,0,1.9,0.076,11,34,0.9978,3.51,0.56,9.4"
 		}
 		m.inputs[i] = t
 	}
