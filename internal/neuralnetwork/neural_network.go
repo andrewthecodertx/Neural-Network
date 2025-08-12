@@ -95,10 +95,10 @@ func (nn *NeuralNetwork) FeedForward(inputs []float64) ([][]float64, []float64) 
 	// Calculate hidden layer outputs
 	for i, layerSize := range nn.HiddenLayers {
 		hiddenOutputs[i] = make([]float64, layerSize)
-		for j := 0; j < layerSize; j++ {
+		for j := range hiddenOutputs[i] {
 			sum := 0.0
-			for k := 0; k < len(layerInput); k++ {
-				sum += layerInput[k] * nn.HiddenWeights[i][j][k]
+			for k, val := range layerInput {
+				sum += val * nn.HiddenWeights[i][j][k]
 			}
 			hiddenOutputs[i][j] = nn.hiddenActivationFuncs[i].Activate(sum + nn.HiddenBiases[i][j])
 		}
@@ -138,10 +138,10 @@ func (nn *NeuralNetwork) Backpropagate(inputs []float64, targets []float64, hidd
 		layerSize := nn.HiddenLayers[i]
 		hiddenErrors[i] = make([]float64, layerSize)
 		hiddenDeltas[i] = make([]float64, layerSize)
-		for j := 0; j < layerSize; j++ {
+		for j := range hiddenErrors[i] {
 			sum := 0.0
-			for k := 0; k < len(nextLayerDeltas); k++ {
-				sum += nextLayerDeltas[k] * nextLayerWeights[k][j]
+			for k, delta := range nextLayerDeltas {
+				sum += delta * nextLayerWeights[k][j]
 			}
 			hiddenErrors[i][j] = sum
 			hiddenDeltas[i][j] = hiddenErrors[i][j] * nn.hiddenActivationFuncs[i].Derivative(hiddenOutputs[i][j])
@@ -170,9 +170,9 @@ func (nn *NeuralNetwork) Backpropagate(inputs []float64, targets []float64, hidd
 		} else {
 			prevLayerOutput = hiddenOutputs[i-1]
 		}
-		for j := 0; j < nn.HiddenLayers[i]; j++ {
-			for k := 0; k < len(prevLayerOutput); k++ {
-				nn.HiddenWeights[i][j][k] += learningRate * hiddenDeltas[i][j] * prevLayerOutput[k]
+		for j := range nn.HiddenWeights[i] {
+			for k, val := range prevLayerOutput {
+				nn.HiddenWeights[i][j][k] += learningRate * hiddenDeltas[i][j] * val
 			}
 			nn.HiddenBiases[i][j] += learningRate * hiddenDeltas[i][j]
 		}
