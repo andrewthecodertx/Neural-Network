@@ -1,7 +1,6 @@
 package neuralnetwork_test
 
 import (
-	"io/ioutil"
 	"math"
 	"os"
 	"reflect"
@@ -9,6 +8,7 @@ import (
 
 	"go-neuralnetwork/internal/data"
 	"go-neuralnetwork/internal/neuralnetwork"
+	"go-neuralnetwork/internal/tempfile"
 )
 
 func TestInitNetwork(t *testing.T) {
@@ -96,12 +96,10 @@ func TestSaveAndLoadModel(t *testing.T) {
 		InputMaxs:  []float64{1.0, 1.0},
 	}
 
-	tmpfile, err := ioutil.TempFile("", "model-*.json")
+	filePath, err := tempfile.CreateTempFileWithContent("model-*.json", "")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	filePath := tmpfile.Name()
-	tmpfile.Close()
 	defer os.Remove(filePath)
 
 	err = originalMD.SaveModel(filePath)

@@ -16,21 +16,21 @@ import (
 
 // Messages
 type (
-	csvFilesLoadedMsg                struct{ files []string }
-	modelsLoadedMsg                  struct{ models []string }
-	trainingStartedMsg               struct{}
-	epochCompletedMsg                struct {
+	csvFilesLoadedMsg  struct{ files []string }
+	modelsLoadedMsg    struct{ models []string }
+	trainingStartedMsg struct{}
+	epochCompletedMsg  struct {
 		epochNum int
 		loss     float64
 	}
-	trainingFinishedMsg              struct {
+	trainingFinishedMsg struct {
 		modelData *data.ModelData
 		testData  *data.Dataset
 	}
 	evaluationFinishedMsg             struct{ accuracy float64 }
-	predictionResultMsg              struct{ result float64 }
+	predictionResultMsg               struct{ result float64 }
 	predictionResultClassificationMsg struct{ result string }
-	errorMsg                         struct{ err error }
+	errorMsg                          struct{ err error }
 )
 
 func (m *Model) runTraining() tea.Cmd {
@@ -180,24 +180,24 @@ var (
 
 // Model represents the state of the entire application.
 type Model struct {
-	state              sessionState
-	menuCursor         int
-	menuChoices        []string
-	trainingForm       trainingFormModel
-	predictionForm     predictionFormModel
-	saveModelInput     textinput.Model
-	modelData          *data.ModelData
-	program            *tea.Program
-	lastError          error
-	quitting           bool
-	terminalWidth      int
-	terminalHeight     int
-	lastLoss           float64
-	currentEpoch       int
-	totalEpochs        int
-	predictionValue    float64
-	predictionClass    string
-	accuracy           float64
+	state           sessionState
+	menuCursor      int
+	menuChoices     []string
+	trainingForm    trainingFormModel
+	predictionForm  predictionFormModel
+	saveModelInput  textinput.Model
+	modelData       *data.ModelData
+	program         *tea.Program
+	lastError       error
+	quitting        bool
+	terminalWidth   int
+	terminalHeight  int
+	lastLoss        float64
+	currentEpoch    int
+	totalEpochs     int
+	predictionValue float64
+	predictionClass string
+	accuracy        float64
 }
 
 // trainingFormModel holds the state for the training configuration form.
